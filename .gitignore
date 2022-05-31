@@ -1,2 +1,7 @@
-./vendor
-./build
+.idea/
+cmake*/
+build/
+vendor/
+include/config.hpp
+!src/vendor
+.vscode/
