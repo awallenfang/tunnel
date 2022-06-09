@@ -1,14 +1,57 @@
 #version 400 core
-#define FAR_PLANE 20.
+#define FAR_PLANE 100.
 out vec4 frag_color;
 uniform uvec2 uRes;
 uniform float uTime;
 
-// const float PI = 3.14159;
+// Source https://gist.github.com/patriciogonzalezvivo/670c22f3966e662d2f83
+float mod289(float x){return x - floor(x * (1.0 / 289.0)) * 289.0;}
+vec4 mod289(vec4 x){return x - floor(x * (1.0 / 289.0)) * 289.0;}
+vec4 perm(vec4 x){return mod289(((x * 34.0) + 1.0) * x);}
 
-// float sdCircle(vec2 p, float r) {
-//     return length(p) - r;
-// }
+float noise(vec3 p){
+    vec3 a = floor(p);
+    vec3 d = p - a;
+    d = d * d * (3.0 - 2.0 * d);
+
+    vec4 b = a.xxyy + vec4(0.0, 1.0, 0.0, 1.0);
+    vec4 k1 = perm(b.xyxy);
+    vec4 k2 = perm(k1.xyxy + b.zzww);
+
+    vec4 c = k2 + a.zzzz;
+    vec4 k3 = perm(c);
+    vec4 k4 = perm(c + 1.0);
+
+    vec4 o1 = fract(k3 * (1.0 / 41.0));
+    vec4 o2 = fract(k4 * (1.0 / 41.0));
+
+    vec4 o3 = o2 * d.z + o1 * (1.0 - d.z);
+    vec2 o4 = o3.yw * d.x + o3.xz * (1.0 - d.x);
+
+    return o4.y * d.y + o4.x * (1.0 - d.y);
+}
+
+// General SDF operations
+
+// A sharp union, basically just min()
+float opSharpUnion(float object_1, float object_2) {
+    return min(object_1, object_2);
+}
+
+// A smooth combination of two objects, taken from Inigo Quilez
+float opSmoothUnion(float object_1, float object_2, float smoothness) {
+    float h = clamp( 0.5 + 0.5*(object_2-object_1)/smoothness, 0.0, 1.0 );
+    return mix( object_2, object_1, h ) - smoothness*h*(1.0-h);;
+}
+
+// A repetition operator, taken from Inigo Quilez
+vec3 opRep( in vec3 ray_pos, in vec3 repeat_direction)
+{
+    vec3 q = mod(ray_pos+0.5*repeat_direction,repeat_direction)-0.5*repeat_direction;
+    return q;
+}
+
+// const float PI = 3.14159;
 
 // vec2 cart2pol(vec2 p) {
 //     float l = length(p);
@@ -16,34 +59,107 @@ uniform float uTime;
 //     return vec2(l,th);
 // }
 
+
+
+// float sdEllipsoid(vec3 pos, vec3 rad){
+//     float k0 = length(pos/rad);
+//     float k1 = length(pos/rad/rad);
+//     return k0*(k0 - 1.0)/k1;
+// }
+
+// float sdBounce(vec3 pos){
+//     float t = fract(0.8*uTime);
+//     float y = 8.0*t*(1.0-t);
+//     vec3 cen = vec3(1., y, -1.);
+//     vec3 rad = vec3(.25, .25, .25);
+//     return sdEllipsoid(pos-cen, rad);
+// }
+
+// A mod(float, int) without weird precision loss on the float
+float modulo(float n, int val) {
+    return (int(n) % val) + fract(n);
+}
+
+float sdBox(vec3 pos, vec3 shape, float rounding) {
+    vec3 q = abs(pos) - shape;
+    return length(max(q, 0.)) + min( max( q.x, max(q.y, q.z)), 0. ) - rounding;
+}
+
 float sdSphere(vec3 p, vec3 own_pos, float s) {
     return length(p - own_pos) - s;
 }
 
-// float map(vec3 pos) {
-//     return sdSphere(pos - vec3(0., 10., -1.), 1.);
-// }
-
-float sdEllipsoid(vec3 pos, vec3 rad){
-    float k0 = length(pos/rad);
-    float k1 = length(pos/rad/rad);
-    return k0*(k0 - 1.0)/k1;
+float sdTriPrism(vec3 pos, vec3 p, vec2 h )
+{
+    p -= pos;
+  vec3 q = abs(p);
+  return max(q.z-h.y,max(q.x*0.866025+p.y*0.5,-p.y)-h.x*0.5);
 }
 
-float sdBounce(vec3 pos){
-    float t = fract(0.8*uTime);
-    float y = 8.0*t*(1.0-t);
-    vec3 cen = vec3(1., y, -1.);
-    vec3 rad = vec3(.25, .25, .25);
-    return sdEllipsoid(pos-cen, rad);
+// Distance function of the rails with details
+float sdTrack(vec3 ray_pos) {
+    float top_box = sdBox(ray_pos - vec3(0.,0.18,0.), vec3(0.15,0.01,100.), 0.);
+    float middle_box = sdBox(ray_pos - vec3(0., 0.08, 0.), vec3(0.08,0.08,100.), 0.);
+    float bottom_box = sdBox(ray_pos - vec3(0.,0.0,0.), vec3(0.15,0.01,100.), 0.);
+    return min(min(top_box, middle_box), bottom_box);
+}
+
+// Distance function of the rail track, where distance is the distance between boards
+float sdCartTrack(vec3 ray_pos, int distance) {
+    // Draw the wooden boards
+    ray_pos = opRep(ray_pos, vec3(0., 0., distance));
+
+    float board_distance = sdBox(ray_pos, vec3(2,0.1,0.4), 0.05);
+
+    // Draw board rail connectors
+    float connector_left_distance = sdBox(ray_pos - vec3(.85, .15, .25), vec3(.05), .0);
+    float connector_right_distance = sdBox(ray_pos - vec3(-0.85, .15, .25), vec3(.05), .0);
+
+    float connector_distance = min(connector_left_distance, connector_right_distance);
+
+    // Combine connector with boards
+
+    board_distance = min(board_distance, connector_distance);
+
+    // Draw the rails with details
+    float left_track = sdTrack(ray_pos - vec3(-1., 0.15, 0.));
+    float right_track = sdTrack(ray_pos - vec3(1., 0.15, 0.));
+
+    float track_distance = min(left_track, right_track);
+
+    // Combine the rails and the board
+    return min(board_distance, track_distance);
+}
+
+float sdGround(vec3 ray_pos) {
+    return ray_pos.y + 0.5*noise(ray_pos);
+}
+
+float sdTunnel(vec3 ray_pos, float size) {
+    float wall_distance = size - length(ray_pos.xy*vec2(1, 1)) + noise(ray_pos);
+
+    float ground_distance = sdGround(ray_pos);
+
+    return opSmoothUnion(wall_distance, ground_distance, 0.5);
+}
+
+float sdDistancePlane(vec3 ray_pos, float distance) {
+    return ray_pos.z + distance;
 }
 
 float map(vec3 pos){
-    // float d1 = sdSphere(pos, vec3(1., 1., -2.), 1.);
-    float d1 = 5. - length(pos.xy*vec2(1, .8));
-    // float d2 = pos.y - (-.25);
+    float tunnel_distance = sdTunnel(pos, 5*abs(sin(uTime) + 1.5));
 
-    return d1;
+    float track_distance = sdCartTrack(pos, 2);
+
+    float scene_distance = opSharpUnion(tunnel_distance, track_distance);
+
+    return scene_distance;
+}
+
+// The path the camera takes, ran over using t
+vec3 path(float t) {
+    return vec3(0., 2., -10*t);
 }
 
 vec3 calcNormal(vec3 p){
@@ -67,7 +183,7 @@ float ray(vec3 ro, vec3 rd){
     for (int i=0; i<steps; i++) {
         vec3 pos = ro + t*rd;
         float d = map(pos);
-        if ( t > FAR_PLANE) return -1.;
+        if ( t > FAR_PLANE) return FAR_PLANE;
         if( d < eps) break;
         t += d;
     }
@@ -97,7 +213,7 @@ void main()
 {
     vec2 p = (2*gl_FragCoord.xy - vec2(uRes.xy)) / float(uRes.y);
 
-    vec3 ro = vec3(0., 1., 1.);
+    vec3 ro = path(uTime);
     vec3 rd = normalize(vec3(p.xy, -1.));
 
     vec3 col = render(ro, rd);

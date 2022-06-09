@@ -6,8 +6,8 @@
 #include <iostream>
 #include <chrono>
 
-const int WINDOW_WIDTH = 1280;
-const int WINDOW_HEIGHT = 720;
+int WINDOW_WIDTH = 1280;
+int WINDOW_HEIGHT = 720;
 
 std::chrono::time_point<std::chrono::system_clock> start_time;
 
@@ -123,6 +123,8 @@ void resizeCallback(GLFWwindow*, int width, int height)
 {
     // set new width and height as viewport size
     glViewport(0, 0, width, height);
+    WINDOW_WIDTH = width;
+    WINDOW_HEIGHT = height;
 }
 
 float getTimeDelta() {
