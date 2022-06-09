@@ -146,7 +146,7 @@ float sdTunnel(vec3 ray_pos, float size) {
     // Draw the wooden beams
     float beam_distance = sdWoodBeams(opRep(ray_pos, vec3(0., 0., 3)), size);
 
-    return min(wall_distance, beam_distance);
+    return opSharpUnion(wall_distance, beam_distance);
     //return opSmoothUnion(beam_distance, wall_distance, 0.05);
 }
 
@@ -163,7 +163,7 @@ float map(vec3 pos){
 
 // The path the camera takes, ran over using t
 vec3 path(float t) {
-    return vec3(0., 2., -10*t);
+    return vec3(0., 3. + 0.2*sin(0.5*t), -5*t);
 }
 
 vec3 calcNormal(vec3 p){
