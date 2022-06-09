@@ -31,7 +31,9 @@ float noise(vec3 p){
     return o4.y * d.y + o4.x * (1.0 - d.y);
 }
 
+// **********************
 // General SDF operations
+// **********************
 
 // A sharp union, basically just min()
 float opSharpUnion(float object_1, float object_2) {
@@ -56,28 +58,51 @@ float modulo(float n, int val) {
     return (int(n) % val) + fract(n);
 }
 
+// **************
+// SDF primitives
+// **************
+
+// A box. shape are the directional radii, rounding allows rounding
 float sdBox(vec3 pos, vec3 shape, float rounding) {
     vec3 q = abs(pos) - shape;
     return length(max(q, 0.)) + min( max( q.x, max(q.y, q.z)), 0. ) - rounding;
 }
 
-float sdSphere(vec3 p, vec3 own_pos, float s) {
-    return length(p - own_pos) - s;
+// A sphere
+float sdSphere(vec3 pos,  float radius) {
+    return length(pos) - radius;
+}
+
+// An infinite horizontal plane
+float sdPlaneY(vec3 pos, float offset) {
+    return pos.y + offset;
 }
 
 float sdTriPrism(vec3 pos, vec3 p, vec2 h )
 {
     p -= pos;
-  vec3 q = abs(p);
-  return max(q.z-h.y,max(q.x*0.866025+p.y*0.5,-p.y)-h.x*0.5);
+    vec3 q = abs(p);
+    return max(q.z-h.y,max(q.x*0.866025+p.y*0.5,-p.y)-h.x*0.5);
 }
+
+// *******************
+// Combined primitives
+// *******************
 
 // Distance function of the rails with details
 float sdTrack(vec3 ray_pos) {
-    float top_box = sdBox(ray_pos - vec3(0.,0.18,0.), vec3(0.15,0.01,100.), 0.);
-    float middle_box = sdBox(ray_pos - vec3(0., 0.08, 0.), vec3(0.08,0.08,100.), 0.);
-    float bottom_box = sdBox(ray_pos - vec3(0.,0.0,0.), vec3(0.15,0.01,100.), 0.);
+    float top_box = sdBox(ray_pos - vec3(0.,0.18,0.), vec3(0.15,0.01,10.), 0.);
+    float middle_box = sdBox(ray_pos - vec3(0., 0.08, 0.), vec3(0.08,0.08,10.), 0.);
+    float bottom_box = sdBox(ray_pos - vec3(0.,0.0,0.), vec3(0.15,0.01,10.), 0.);
     return min(min(top_box, middle_box), bottom_box);
+}
+
+float sdWoodBeams(vec3 ray_pos, float size) {
+    float top_bar = sdBox(ray_pos - vec3(0., size, 0.), vec3(size,0.2,0.2), 0.05);
+    float left_bar = sdBox(ray_pos - vec3(-(size-1), 2, 0.), vec3(0.2,size,0.2), 0.05);
+    float right_bar = sdBox(ray_pos - vec3((size-1), 2, 0.), vec3(0.2,size,0.2), 0.05);
+
+    return opSmoothUnion(top_bar, opSmoothUnion(left_bar, right_bar, 0.1), 0.1);
 }
 
 // Distance function of the rail track, where distance is the distance between boards
@@ -91,24 +116,24 @@ float sdCartTrack(vec3 ray_pos, int distance) {
     float connector_left_distance = sdBox(ray_pos - vec3(.85, .15, .25), vec3(.05), .0);
     float connector_right_distance = sdBox(ray_pos - vec3(-0.85, .15, .25), vec3(.05), .0);
 
-    float connector_distance = min(connector_left_distance, connector_right_distance);
+    float connector_distance = opSharpUnion(connector_left_distance, connector_right_distance);
 
     // Combine connector with boards
-
-    board_distance = min(board_distance, connector_distance);
+    board_distance = opSharpUnion(board_distance, connector_distance);
 
     // Draw the rails with details
     float left_track = sdTrack(ray_pos - vec3(-1., 0.15, 0.));
     float right_track = sdTrack(ray_pos - vec3(1., 0.15, 0.));
 
-    float track_distance = min(left_track, right_track);
+    float track_distance = opSharpUnion(left_track, right_track);
+
 
     // Combine the rails and the board
-    return min(board_distance, track_distance);
+    return opSharpUnion(board_distance, track_distance);
 }
 
 float sdGround(vec3 ray_pos) {
-    return ray_pos.y + 0.5*noise(ray_pos);
+    return sdPlaneY(ray_pos, 0.5*noise(ray_pos) - 0.2);
 }
 
 float sdTunnel(vec3 ray_pos, float size) {
@@ -116,12 +141,15 @@ float sdTunnel(vec3 ray_pos, float size) {
 
     float ground_distance = sdGround(ray_pos);
 
-    return opSmoothUnion(wall_distance, ground_distance, 0.5);
+    wall_distance = opSmoothUnion(wall_distance, ground_distance,2 );
+
+    // Draw the wooden beams
+    float beam_distance = sdWoodBeams(opRep(ray_pos, vec3(0., 0., 3)), size);
+
+    return min(wall_distance, beam_distance);
+    //return opSmoothUnion(beam_distance, wall_distance, 0.05);
 }
 
-float sdDistancePlane(vec3 ray_pos, float distance) {
-    return ray_pos.z + distance;
-}
 
 float map(vec3 pos){
     float tunnel_distance = sdTunnel(pos, 5);
