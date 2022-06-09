@@ -51,30 +51,6 @@ vec3 opRep( in vec3 ray_pos, in vec3 repeat_direction)
     return q;
 }
 
-// const float PI = 3.14159;
-
-// vec2 cart2pol(vec2 p) {
-//     float l = length(p);
-//     float th = atan(p.x, p.y);
-//     return vec2(l,th);
-// }
-
-
-
-// float sdEllipsoid(vec3 pos, vec3 rad){
-//     float k0 = length(pos/rad);
-//     float k1 = length(pos/rad/rad);
-//     return k0*(k0 - 1.0)/k1;
-// }
-
-// float sdBounce(vec3 pos){
-//     float t = fract(0.8*uTime);
-//     float y = 8.0*t*(1.0-t);
-//     vec3 cen = vec3(1., y, -1.);
-//     vec3 rad = vec3(.25, .25, .25);
-//     return sdEllipsoid(pos-cen, rad);
-// }
-
 // A mod(float, int) without weird precision loss on the float
 float modulo(float n, int val) {
     return (int(n) % val) + fract(n);
@@ -148,7 +124,7 @@ float sdDistancePlane(vec3 ray_pos, float distance) {
 }
 
 float map(vec3 pos){
-    float tunnel_distance = sdTunnel(pos, 5*abs(sin(uTime) + 1.5));
+    float tunnel_distance = sdTunnel(pos, 5);
 
     float track_distance = sdCartTrack(pos, 2);
 
