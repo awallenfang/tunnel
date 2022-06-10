@@ -196,8 +196,8 @@ float sdCartTrack(vec3 ray_pos, int distance) {
     float board_distance = sdBox(ray_pos, vec3(2,0.1,0.4), 0.05);
 
     // Draw board rail connectors
-    float connector_left_distance = sdBox(ray_pos - vec3(.85, .15, .25), vec3(.05), .0);
-    float connector_right_distance = sdBox(ray_pos - vec3(-0.85, .15, .25), vec3(.05), .0);
+    float connector_right_distance = sdBox(ray_pos - vec3(.85, .15, 0), vec3(.05), .0);
+    float connector_left_distance = sdBox(ray_pos - vec3(-0.85, .15, 0), vec3(.05), .0);
 
     float connector_distance = opSharpUnion(connector_left_distance, connector_right_distance);
 
@@ -220,7 +220,7 @@ float sdCart(vec3 ray_pos) {
 }
 
 float sdGround(vec3 ray_pos) {
-    return sdPlaneY(ray_pos, 0.5*noise(ray_pos) - 0.2);
+    return sdPlaneY(ray_pos, 0.5*noise(ray_pos) -0.15);
 }
 
 float sdTunnel(vec3 ray_pos, float size) {
@@ -242,8 +242,6 @@ float sdTunnel(vec3 ray_pos, float size) {
 // *********
 
 // Renderer based on https://github.com/electricsquare/raymarching-workshop
-
-
 
 float map(vec3 pos){
     float tunnel_distance = sdTunnel(pos, 5);
@@ -308,41 +306,27 @@ float light_ray(vec3 ray_origin, vec3 ray_direction){
 }
 
 // Shadow calculation inspired from https://iquilezles.org/articles/rmshadows/
+// Specifically https://www.shadertoy.com/view/lsf3zr
 float light_scan(vec3 pos, vec3 normal) {
-    // pos += EPSILON * normal;
     vec3 light = light_sources[0];
     // TODO:Iterate over the light sources and take all of them into consideration
-    vec3 light_direction = normalize(pos - light);
+    vec3 light_direction = normalize(light - pos);
     float max_t = distance(pos,light);
 
     float res = 1.0;
-    float k = 256;
+    float k = 2;
+    float t = 0.;
 
-    for (float t = 0.; t<=max_t;) {
-        float h = map(pos - light_direction * t);
-
-        if (h < EPSILON) {
-            return 0.;
-        }
-
+    for (int i = 0; i<32; i++) {
+        float h = map(pos + light_direction * t);
         res = min(res, k*h/t);
-        t += h;
+        t += clamp(h, 0.1, 1.);
+        if (res < EPSILON || t > max_t) break; 
     }
 
-    return res * 8/max_t;
+    return res;
 }
 
-// float distance_pos_light = distance(pos, light);
-
-    // vec3 hit = pos + ray(pos, (pos - light)) * (pos - light);
-
-    // float distance = distance(pos, hit);
-
-    // if (distance > distance_pos_light) {
-    //     return 1.;
-    // }
-
-    // return 0.;
 
 vec3 gamma_correction(vec3 col) {
     return pow(col, vec3(0.4545));
@@ -396,7 +380,7 @@ void main()
     vec2 uv = normalizeScreenCoords(gl_FragCoord.xy);
 
     vec3 camera_origin = camera_path(uTime);
-    vec3 camera_target = vec3(0., 0., 3.) + path(uTime);
+    vec3 camera_target = vec3(0., 0., 3.) + path(uTime) + vec3(4.5,-1,0);
 
     light_sources[0] = camera_target;
 
