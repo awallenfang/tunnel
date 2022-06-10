@@ -1,5 +1,7 @@
 #version 400 core
 #define FAR_PLANE 50.
+#define EPSILON 0.000001
+
 out vec4 frag_color;
 uniform uvec2 uRes;
 uniform float uTime;
@@ -49,7 +51,7 @@ float noise(vec3 p){
     vec2 o4 = o3.yw * d.x + o3.xz * (1.0 - d.x);
 
     return o4.y * d.y + o4.x * (1.0 - d.y);
-    //return 0.;
+    // return 0.;
 }
 
 // A mod(float, int) without weird precision loss on the float
@@ -250,7 +252,7 @@ float map(vec3 pos){
 }
 
 vec3 calcNormal(vec3 p){
-    vec2 e = vec2(0.001, 0.);
+    vec2 e = vec2(EPSILON, 0.);
 
     float d = map(p);
 
@@ -266,7 +268,6 @@ vec3 calcNormal(vec3 p){
 float ray(vec3 ray_origin, vec3 ray_direction){
     float t = 0.;
 
-    float eps = 0.001;
     uint steps = 100;
 
     for (int i=0; i<steps; i++) {
@@ -274,29 +275,33 @@ float ray(vec3 ray_origin, vec3 ray_direction){
 
         float d = map(pos);
         
-        if( d < eps * t) return t;
+        if( d < EPSILON * t) return t;
         if (d > FAR_PLANE) return -1;
         t += d;
     }
     return t;
 }
 
-float light_scan(vec3 pos) {
+float light_scan(vec3 pos, vec3 normal) {
+    // pos += EPSILON * normal;
     vec3 light = light_sources[0];
     // TODO:Iterate over the light sources and take all of them into consideration
     vec3 light_direction = normalize(pos - light);
     float max_t = distance(pos,light);
 
-    for (float t = 0.1; t<=max_t;) {
-        float h = map(pos + light_direction * t);
-        if (h < 0.001) {
-            return 0.0;
-        }
+    float res = 1.0;
+    float k = 256;
 
+    for (float t = 0.; t<=max_t;) {
+        float h = map(pos - light_direction * t);
+        if (h < EPSILON) {
+            return 0.;
+        }
+        res = min(res, k*h/t);
         t += h;
     }
 
-    return 1.0;
+    return res;
 }
 
 // float distance_pos_light = distance(pos, light);
@@ -324,7 +329,7 @@ vec3 render(vec3 ray_origin, vec3 ray_direction) {
         vec3 pos = ray_origin + t*ray_direction;
         vec3 nor = calcNormal(pos);
 
-        col = col * max(dot(normalize(ray_direction), nor), 0.) * light_scan(pos);
+        col = col /** max(dot(normalize(ray_direction), nor), 0.)*/ * light_scan(pos, nor);
         //col *= nor + vec3(.5);
     }
     col = mix(col , vec3(.0, .0, .0), smoothstep(0., .95, t*2/FAR_PLANE));
@@ -347,7 +352,7 @@ vec3 getCameraRayDir(vec2 uv, vec3 camPos, vec3 camTarget) {
 
 vec2 normalizeScreenCoords(vec2 screenCoords) {
     // vec2 result = 2. * (screenCoords/uRes.xy - 0.5);
-    // // result.y *= uRes.x / uRes.y;
+    // result.y *= uRes.x / uRes.y;
 
     // return result;
 
