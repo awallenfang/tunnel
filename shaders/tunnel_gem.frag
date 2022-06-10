@@ -1,8 +1,28 @@
 #version 400 core
-#define FAR_PLANE 100.
+#define FAR_PLANE 50.
 out vec4 frag_color;
 uniform uvec2 uRes;
 uniform float uTime;
+
+vec3 light_sources[1];
+
+// Structs for refactoring later on
+struct Ray {
+    vec3 origin;
+    vec3 direction;
+};
+
+struct Hit {
+    vec3 position;
+    float distance;
+    vec3 normal;
+};
+
+struct Light {
+    vec3 position;
+    vec3 color;
+    float intensity;
+};
 
 // Source https://gist.github.com/patriciogonzalezvivo/670c22f3966e662d2f83
 float mod289(float x){return x - floor(x * (1.0 / 289.0)) * 289.0;}
@@ -29,7 +49,19 @@ float noise(vec3 p){
     vec2 o4 = o3.yw * d.x + o3.xz * (1.0 - d.x);
 
     return o4.y * d.y + o4.x * (1.0 - d.y);
+    //return 0.;
 }
+
+// A mod(float, int) without weird precision loss on the float
+float modulo(float n, int val) {
+    return (int(n) % val) + fract(n);
+}
+
+// The path the camera takes, ran over using t
+vec3 path(float t) {
+    return vec3(0., 3. + 0.2*sin(0.5*t), 5*t);
+}
+
 
 // **********************
 // General SDF operations
@@ -53,9 +85,43 @@ vec3 opRep( in vec3 ray_pos, in vec3 repeat_direction)
     return q;
 }
 
-// A mod(float, int) without weird precision loss on the float
-float modulo(float n, int val) {
-    return (int(n) % val) + fract(n);
+vec3 opTx(in vec3 ray_pos, in mat3 transform) {
+    return inverse(transform) * ray_pos;
+}
+
+// ******************************
+// General matrix transformations
+// ******************************
+
+mat3 matRotX(float angle) {
+    mat3 rotation = mat3(0.);
+    rotation[0][0] = 1.;
+    rotation[1][2] = - sin(radians(angle));
+    rotation[1][1] = cos(radians(angle));
+    rotation[2][1] = sin(radians(angle));
+    rotation[2][2] = cos(radians(angle));
+
+    return rotation;
+}
+mat3 matRotY(float angle) {
+    mat3 rotation = mat3(0.);
+    rotation[0][0] = cos(radians(90));
+    rotation[2][0] = - sin(radians(angle));
+    rotation[1][1] = 1.;
+    rotation[0][2] = sin(radians(angle));
+    rotation[2][2] = cos(radians(angle));
+
+    return rotation;
+}
+mat3 matRotZ(float angle) {
+    mat3 rotation = mat3(0.);
+    rotation[0][0] = cos(radians(90));
+    rotation[0][1] = sin(radians(90));
+    rotation[1][1] = cos(radians(90));
+    rotation[1][0] = -sin(radians(90));
+    rotation[2][2] = 1.;
+
+    return rotation;
 }
 
 // **************
@@ -73,9 +139,20 @@ float sdSphere(vec3 pos,  float radius) {
     return length(pos) - radius;
 }
 
+float sdCappedCylinder( vec3 pos, float height, float radius )
+{
+  vec2 d = abs(vec2(length(pos.xz),pos.y)) - vec2(height,radius);
+  return min(max(d.x,d.y),0.0) + length(max(d,0.0));
+}
+
+// A plane oriented using a normal
+float sdPlane(vec3 pos, vec4 normal) {
+    return dot(pos, normal.xyz) + normal.w;
+}
+
 // An infinite horizontal plane
 float sdPlaneY(vec3 pos, float offset) {
-    return pos.y + offset;
+    return sdPlane(pos, vec4(0., 1., 0., offset));
 }
 
 float sdTriPrism(vec3 pos, vec3 p, vec2 h )
@@ -132,6 +209,10 @@ float sdCartTrack(vec3 ray_pos, int distance) {
     return opSharpUnion(board_distance, track_distance);
 }
 
+float sdCart(vec3 ray_pos) {
+    return 1999;//sdCappedCylinder(opTx(ray_pos - path(uTime) - vec3(0.,-2.,8.), matRotZ(90)), 1., 1.);
+}
+
 float sdGround(vec3 ray_pos) {
     return sdPlaneY(ray_pos, 0.5*noise(ray_pos) - 0.2);
 }
@@ -150,6 +231,13 @@ float sdTunnel(vec3 ray_pos, float size) {
     //return opSmoothUnion(beam_distance, wall_distance, 0.05);
 }
 
+// *********
+// Rendering
+// *********
+
+// Renderer based on https://github.com/electricsquare/raymarching-workshop
+
+
 
 float map(vec3 pos){
     float tunnel_distance = sdTunnel(pos, 5);
@@ -158,12 +246,7 @@ float map(vec3 pos){
 
     float scene_distance = opSharpUnion(tunnel_distance, track_distance);
 
-    return scene_distance;
-}
-
-// The path the camera takes, ran over using t
-vec3 path(float t) {
-    return vec3(0., 3. + 0.2*sin(0.5*t), -5*t);
+    return min(scene_distance, sdCart(pos));
 }
 
 vec3 calcNormal(vec3 p){
@@ -180,47 +263,110 @@ vec3 calcNormal(vec3 p){
     return normalize(gradient);
 }
 
-float ray(vec3 ro, vec3 rd){
+float ray(vec3 ray_origin, vec3 ray_direction){
     float t = 0.;
+
     float eps = 0.001;
     uint steps = 100;
+
     for (int i=0; i<steps; i++) {
-        vec3 pos = ro + t*rd;
+        vec3 pos = ray_origin + t*ray_direction;
+
         float d = map(pos);
-        if ( t > FAR_PLANE) return FAR_PLANE;
-        if( d < eps) break;
+        
+        if( d < eps * t) return t;
+        if (d > FAR_PLANE) return -1;
         t += d;
     }
     return t;
 }
 
-vec3 render(vec3 ro, vec3 rd) {
+float light_scan(vec3 pos) {
+    vec3 light = light_sources[0];
+    // TODO:Iterate over the light sources and take all of them into consideration
+    vec3 light_direction = normalize(pos - light);
+    float max_t = distance(pos,light);
 
-    vec3 col = vec3(0.4, .75, 1.);
+    for (float t = 0.1; t<=max_t;) {
+        float h = map(pos + light_direction * t);
+        if (h < 0.001) {
+            return 0.0;
+        }
 
-    float t = ray(ro, rd);
+        t += h;
+    }
+
+    return 1.0;
+}
+
+// float distance_pos_light = distance(pos, light);
+
+    // vec3 hit = pos + ray(pos, (pos - light)) * (pos - light);
+
+    // float distance = distance(pos, hit);
+
+    // if (distance > distance_pos_light) {
+    //     return 1.;
+    // }
+
+    // return 0.;
+
+vec3 gamma_correction(vec3 col) {
+    return pow(col, vec3(0.4545));
+}
+
+vec3 render(vec3 ray_origin, vec3 ray_direction) {
+
+    vec3 col = vec3(.5, .46, .42);
+
+    float t = ray(ray_origin, ray_direction);
     if (t > 0.){
-        vec3 pos = ro + t*rd;
+        vec3 pos = ray_origin + t*ray_direction;
         vec3 nor = calcNormal(pos);
 
-        // vec3 sun_dir = normalize(vec3(.8, .4, .2));
-        // float sun_dif = clamp(dot(nor, sun_dir), 0., 1.);
-        // float sun_sh = step(ray(pos+nor*0.001, sun_dir), 0.0);
-        // float sun_sh = 1.f;
-        col = col * dot(normalize(rd), nor);
+        col = col * max(dot(normalize(ray_direction), nor), 0.) * light_scan(pos);
+        //col *= nor + vec3(.5);
     }
-    col = mix(col , vec3(.08, .16, .34), smoothstep(0., .95, t*2/FAR_PLANE));
-    return col;
+    col = mix(col , vec3(.0, .0, .0), smoothstep(0., .95, t*2/FAR_PLANE));
+    return gamma_correction(col);
+}
+
+vec3 getCameraRayDir(vec2 uv, vec3 camPos, vec3 camTarget) {
+    // Calculate camera's transform matrix components
+
+    vec3 camForward = normalize(camTarget - camPos);
+    vec3 camRight = normalize(cross(vec3(0., 1., 0.), camForward));
+    vec3 camUp = normalize(cross(camForward, camRight));
+
+    float fPersp = 1.0;
+
+    vec3 vDir = normalize(uv.x * camRight + uv.y * camUp + camForward * fPersp);
+
+    return vDir;
+}
+
+vec2 normalizeScreenCoords(vec2 screenCoords) {
+    // vec2 result = 2. * (screenCoords/uRes.xy - 0.5);
+    // // result.y *= uRes.x / uRes.y;
+
+    // return result;
+
+    return (2*screenCoords - vec2(uRes.xy)) / float(uRes.y);
 }
 
 void main()
 {
-    vec2 p = (2*gl_FragCoord.xy - vec2(uRes.xy)) / float(uRes.y);
+    // vec2 uv = (2*gl_FragCoord.xy - vec2(uRes.xy)) / float(uRes.y);
+    vec2 uv = normalizeScreenCoords(gl_FragCoord.xy);
 
-    vec3 ro = path(uTime);
-    vec3 rd = normalize(vec3(p.xy, -1.));
+    vec3 camera_origin = path(uTime);
+    vec3 camera_target = vec3(0., 0., 3.) + path(uTime);
 
-    vec3 col = render(ro, rd);
+    light_sources[0] = camera_target;
+
+    vec3 camera_direction = getCameraRayDir(uv, camera_origin, camera_target);//normalize(vec3(p.xy, -1.));
+
+    vec3 col = render(camera_origin, camera_direction);
     
     frag_color = vec4(col, 1.0);
 }
