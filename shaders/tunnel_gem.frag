@@ -61,7 +61,11 @@ float modulo(float n, int val) {
 
 // The path the camera takes, ran over using t
 vec3 path(float t) {
-    return vec3(0., 3. + 0.2*sin(0.5*t), 5*t);
+    return vec3(0., 3., 2*t);
+}
+
+vec3 camera_path(float t) {
+    return vec3(cos(t), 3. + 0.8*sin(t), 2*t);
 }
 
 
@@ -251,6 +255,10 @@ float map(vec3 pos){
     return min(scene_distance, sdCart(pos));
 }
 
+float light_map(vec3 pos) {
+    return sdSphere(pos - light_sources[0], 0.1);
+}
+
 vec3 calcNormal(vec3 p){
     vec2 e = vec2(EPSILON, 0.);
 
@@ -282,6 +290,24 @@ float ray(vec3 ray_origin, vec3 ray_direction){
     return t;
 }
 
+float light_ray(vec3 ray_origin, vec3 ray_direction){
+    float t = 0.;
+
+    uint steps = 100;
+
+    for (int i=0; i<steps; i++) {
+        vec3 pos = ray_origin + t*ray_direction;
+
+        float d = light_map(pos);
+        
+        if( d < EPSILON * t) return t;
+        if (d > FAR_PLANE) return -1;
+        t += d;
+    }
+    return t;
+}
+
+// Shadow calculation inspired from https://iquilezles.org/articles/rmshadows/
 float light_scan(vec3 pos, vec3 normal) {
     // pos += EPSILON * normal;
     vec3 light = light_sources[0];
@@ -294,14 +320,16 @@ float light_scan(vec3 pos, vec3 normal) {
 
     for (float t = 0.; t<=max_t;) {
         float h = map(pos - light_direction * t);
+
         if (h < EPSILON) {
             return 0.;
         }
+
         res = min(res, k*h/t);
         t += h;
     }
 
-    return res;
+    return res * 8/max_t;
 }
 
 // float distance_pos_light = distance(pos, light);
@@ -322,7 +350,7 @@ vec3 gamma_correction(vec3 col) {
 
 vec3 render(vec3 ray_origin, vec3 ray_direction) {
 
-    vec3 col = vec3(.5, .46, .42);
+    vec3 col = vec3(.8, .5, .21);
 
     float t = ray(ray_origin, ray_direction);
     if (t > 0.){
@@ -332,6 +360,10 @@ vec3 render(vec3 ray_origin, vec3 ray_direction) {
         col = col * max(dot(normalize(ray_direction), nor), 0.) * light_scan(pos, nor);
     }
     col = mix(col , vec3(.0, .0, .0), smoothstep(0., .95, t*2/FAR_PLANE));
+
+    if (light_ray(ray_origin, ray_direction) > 0) {
+        col = vec3(1., 0, 0);
+    }
     return gamma_correction(col);
 }
 
@@ -363,7 +395,7 @@ void main()
     // vec2 uv = (2*gl_FragCoord.xy - vec2(uRes.xy)) / float(uRes.y);
     vec2 uv = normalizeScreenCoords(gl_FragCoord.xy);
 
-    vec3 camera_origin = path(uTime);
+    vec3 camera_origin = camera_path(uTime);
     vec3 camera_target = vec3(0., 0., 3.) + path(uTime);
 
     light_sources[0] = camera_target;
