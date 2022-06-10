@@ -1,6 +1,6 @@
 #version 400 core
 #define FAR_PLANE 50.
-#define EPSILON 0.000001
+#define EPSILON 0.0001
 
 out vec4 frag_color;
 uniform uvec2 uRes;
@@ -107,7 +107,7 @@ mat3 matRotX(float angle) {
 }
 mat3 matRotY(float angle) {
     mat3 rotation = mat3(0.);
-    rotation[0][0] = cos(radians(90));
+    rotation[0][0] = cos(radians(angle));
     rotation[2][0] = - sin(radians(angle));
     rotation[1][1] = 1.;
     rotation[0][2] = sin(radians(angle));
@@ -117,10 +117,10 @@ mat3 matRotY(float angle) {
 }
 mat3 matRotZ(float angle) {
     mat3 rotation = mat3(0.);
-    rotation[0][0] = cos(radians(90));
-    rotation[0][1] = sin(radians(90));
-    rotation[1][1] = cos(radians(90));
-    rotation[1][0] = -sin(radians(90));
+    rotation[0][0] = cos(radians(angle));
+    rotation[0][1] = sin(radians(angle));
+    rotation[1][1] = cos(radians(angle));
+    rotation[1][0] = -sin(radians(angle));
     rotation[2][2] = 1.;
 
     return rotation;
@@ -329,8 +329,7 @@ vec3 render(vec3 ray_origin, vec3 ray_direction) {
         vec3 pos = ray_origin + t*ray_direction;
         vec3 nor = calcNormal(pos);
 
-        col = col /** max(dot(normalize(ray_direction), nor), 0.)*/ * light_scan(pos, nor);
-        //col *= nor + vec3(.5);
+        col = col * max(dot(normalize(ray_direction), nor), 0.) * light_scan(pos, nor);
     }
     col = mix(col , vec3(.0, .0, .0), smoothstep(0., .95, t*2/FAR_PLANE));
     return gamma_correction(col);
