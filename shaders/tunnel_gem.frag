@@ -54,6 +54,21 @@ float noise(vec3 p){
     // return 0.;
 }
 
+float fbm( in vec3 x, in float H )
+{    
+    float G = exp2(-H);
+    float f = 1.0;
+    float a = 1.0;
+    float t = 0.0;
+    for( int i=0; i<2; i++ )
+    {
+        t += a*noise(f*x);
+        f *= 2.0;
+        a *= G;
+    }
+    return t;
+}
+
 // A mod(float, int) without weird precision loss on the float
 float modulo(float n, int val) {
     return (int(n) % val) + fract(n);
@@ -220,11 +235,11 @@ float sdCart(vec3 ray_pos) {
 }
 
 float sdGround(vec3 ray_pos) {
-    return sdPlaneY(ray_pos, 0.5*noise(ray_pos) -0.15);
+    return sdPlaneY(ray_pos, 0.5*fbm(ray_pos, 1) -0.3);
 }
 
 float sdTunnel(vec3 ray_pos, float size) {
-    float wall_distance = size - length(ray_pos.xy*vec2(1, 1)) + noise(ray_pos);
+    float wall_distance = size - length(ray_pos.xy*vec2(1, 1)) + fbm(ray_pos, 1);
 
     float ground_distance = sdGround(ray_pos);
 
@@ -307,7 +322,7 @@ float light_ray(vec3 ray_origin, vec3 ray_direction){
 
 // Shadow calculation inspired from https://iquilezles.org/articles/rmshadows/
 // Specifically https://www.shadertoy.com/view/lsf3zr
-float light_scan(vec3 pos, vec3 normal) {
+float light_scan(vec3 pos) {
     vec3 light = light_sources[0];
     // TODO:Iterate over the light sources and take all of them into consideration
     vec3 light_direction = normalize(light - pos);
@@ -341,7 +356,7 @@ vec3 render(vec3 ray_origin, vec3 ray_direction) {
         vec3 pos = ray_origin + t*ray_direction;
         vec3 nor = calcNormal(pos);
 
-        col = col * max(dot(normalize(ray_direction), nor), 0.) * light_scan(pos, nor);
+        col = col * max(dot(normalize(ray_direction), nor), 0.) * light_scan(pos);
     }
     col = mix(col , vec3(.0, .0, .0), smoothstep(0., .95, t*2/FAR_PLANE));
 
@@ -380,7 +395,7 @@ void main()
     vec2 uv = normalizeScreenCoords(gl_FragCoord.xy);
 
     vec3 camera_origin = camera_path(uTime);
-    vec3 camera_target = vec3(0., 0., 3.) + path(uTime) + vec3(4.5,-1,0);
+    vec3 camera_target = vec3(0., 0., 3.) + path(uTime) ;//+ vec3(4.5,-1,0);
 
     light_sources[0] = camera_target;
 
