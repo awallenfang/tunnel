@@ -6,9 +6,12 @@ out vec4 frag_color;
 uniform uvec2 uRes;
 uniform float uTime;
 
-vec3 light_sources[1];
+struct Light {
+    vec3 position;
+    vec3 color;
+    float intensity;
+};
 
-// Structs for refactoring later on
 struct Object {
     float distance;
     int material_id;
@@ -16,23 +19,28 @@ struct Object {
 
 struct Material {
     vec3 color;
-    float intensity;
+    float emission;
+    float roughness;
 };
+
+Light light_sources[1];
+Material materials[3];
+// Structs for refactoring later on
 
 Material id_to_mat(int id) {
     // Wood
     if (id == 0) {
-        return Material(vec3(.8, .5, .21), 0.);
+        return Material(vec3(.8, .5, .21), 0., 0.);
     }
     // Rails
     if (id == 1) {
-        return Material(vec3(1.), 0.);
+        return Material(vec3(1.), 0., 0.);
     }
     // Walls
     if (id == 2) {
-        return Material(vec3(0.271, 0.255, 0.247), 0.);
+        return Material(vec3(0.271, 0.255, 0.247), 0., 0.);
     }
-    return Material(vec3(.8, .5, .21), 0.);
+    return Material(vec3(.8, .5, .21), 0., 0.);
 }
 
 float hash(vec3 p)  
@@ -292,7 +300,7 @@ Object map(vec3 pos){
 }
 
 Object light_map(vec3 pos) {
-    return sdSphere(pos - light_sources[0], 0.1, 1);
+    return sdSphere(pos - light_sources[0].position, 0.1, 1);
 }
 
 vec3 calcNormal(vec3 p){
@@ -345,11 +353,11 @@ float light_ray(vec3 ray_origin, vec3 ray_direction){
 
 // Shadow calculation inspired from https://iquilezles.org/articles/rmshadows/
 // Specifically https://www.shadertoy.com/view/lsf3zr
-float shadow_scan(vec3 pos) {
-    vec3 light = light_sources[0];
+vec3 light_scan(vec3 pos) {
+    Light light = light_sources[0];
     // TODO:Iterate over the light sources and take all of them into consideration
-    vec3 light_direction = normalize(light - pos);
-    float max_t = distance(pos,light);
+    vec3 light_direction = normalize(light.position - pos);
+    float max_t = distance(pos,light.position);
 
     float res = 1.0;
     float k = 8;
@@ -362,7 +370,7 @@ float shadow_scan(vec3 pos) {
         if (res < EPSILON || t > max_t) break; 
     }
 
-    return clamp(res, 0.01, 1.);
+    return clamp(res, 0.01, 1.) * light.color;
 }
 
 vec3 gamma_correction(vec3 col) {
@@ -379,7 +387,9 @@ vec3 render(vec3 ray_origin, vec3 ray_direction) {
         vec3 nor = calcNormal(pos);
         Object object = map(pos);
 
-        col = id_to_mat(object.material_id).color * max(dot(normalize(ray_direction), nor), 0.) * shadow_scan(pos);
+
+
+        col = materials[object.material_id].color * max(dot(normalize(ray_direction), nor), 0.) * light_scan(pos);
     }
     col = mix(col , vec3(.0, .0, .0), smoothstep(0., .95, t*2/FAR_PLANE));
 
@@ -414,13 +424,20 @@ vec2 normalizeScreenCoords(vec2 screenCoords) {
 
 void main()
 {
+    // Wood
+    materials[0] = Material(vec3(.8, .5, .21), 0., 0.);
+    // Rails
+    materials[1] = Material(vec3(1.), 0., 0.);
+    // Wall
+    materials[2] = Material(vec3(0.271, 0.255, 0.247), 0., 0.);
+
     // vec2 uv = (2*gl_FragCoord.xy - vec2(uRes.xy)) / float(uRes.y);
     vec2 uv = normalizeScreenCoords(gl_FragCoord.xy);
 
     vec3 camera_origin = camera_path(uTime);
     vec3 camera_target = vec3(0., 0., 3.) + path(uTime) + vec3(4.,-1.5,0);
 
-    light_sources[0] = camera_target;
+    light_sources[0] = Light(camera_target, vec3(1., 0., 0.), 0.);
 
     vec3 camera_direction = getCameraRayDir(uv, camera_origin, camera_target);//normalize(vec3(p.xy, -1.));
 
