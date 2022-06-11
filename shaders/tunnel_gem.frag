@@ -119,6 +119,7 @@ Object opSharpUnion(Object object_1, Object object_2) {
 
 // A smooth combination of two objects, taken from Inigo Quilez
 Object opSmoothUnion(Object object_1, Object object_2, float smoothness) {
+    // TODO: Decide how to do the material smoothing
     float h = clamp( 0.5 + 0.5*(object_2.distance-object_1.distance)/smoothness, 0.0, 1.0 );
 
     float dist = mix( object_2.distance, object_1.distance, h ) - smoothness*h*(1.0-h);
