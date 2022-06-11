@@ -25,23 +25,6 @@ struct Material {
 
 Light light_sources[1];
 Material materials[3];
-// Structs for refactoring later on
-
-Material id_to_mat(int id) {
-    // Wood
-    if (id == 0) {
-        return Material(vec3(.8, .5, .21), 0., 0.);
-    }
-    // Rails
-    if (id == 1) {
-        return Material(vec3(1.), 0., 0.);
-    }
-    // Walls
-    if (id == 2) {
-        return Material(vec3(0.271, 0.255, 0.247), 0., 0.);
-    }
-    return Material(vec3(.8, .5, .21), 0., 0.);
-}
 
 float hash(vec3 p)  
 {
@@ -437,9 +420,9 @@ void main()
     vec3 camera_origin = camera_path(uTime);
     vec3 camera_target = vec3(0., 0., 3.) + path(uTime) + vec3(4.,-1.5,0);
 
-    light_sources[0] = Light(camera_target, vec3(1., 0., 0.), 0.);
+    light_sources[0] = Light(camera_target, vec3(1.), 0.);
 
-    vec3 camera_direction = getCameraRayDir(uv, camera_origin, camera_target);//normalize(vec3(p.xy, -1.));
+    vec3 camera_direction = getCameraRayDir(uv, camera_origin, camera_target);
 
     vec3 col = render(camera_origin, camera_direction);
     
