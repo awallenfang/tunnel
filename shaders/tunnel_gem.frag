@@ -9,22 +9,31 @@ uniform float uTime;
 vec3 light_sources[1];
 
 // Structs for refactoring later on
-struct Ray {
-    vec3 origin;
-    vec3 direction;
-};
-
-struct Hit {
-    vec3 position;
+struct Object {
     float distance;
-    vec3 normal;
+    int material_id;
 };
 
-struct Light {
-    vec3 position;
+struct Material {
     vec3 color;
     float intensity;
 };
+
+Material id_to_mat(int id) {
+    // Wood
+    if (id == 0) {
+        return Material(vec3(.8, .5, .21), 0.);
+    }
+    // Rails
+    if (id == 1) {
+        return Material(vec3(1.), 0.);
+    }
+    // Walls
+    if (id == 2) {
+        return Material(vec3(0.271, 0.255, 0.247), 0.);
+    }
+    return Material(vec3(.8, .5, .21), 0.);
+}
 
 float hash(vec3 p)  
 {
@@ -104,14 +113,16 @@ vec3 camera_path(float t) {
 // **********************
 
 // A sharp union, basically just min()
-float opSharpUnion(float object_1, float object_2) {
-    return min(object_1, object_2);
+Object opSharpUnion(Object object_1, Object object_2) {
+    return (object_1.distance < object_2.distance ? object_1 : object_2);
 }
 
 // A smooth combination of two objects, taken from Inigo Quilez
-float opSmoothUnion(float object_1, float object_2, float smoothness) {
-    float h = clamp( 0.5 + 0.5*(object_2-object_1)/smoothness, 0.0, 1.0 );
-    return mix( object_2, object_1, h ) - smoothness*h*(1.0-h);;
+Object opSmoothUnion(Object object_1, Object object_2, float smoothness) {
+    float h = clamp( 0.5 + 0.5*(object_2.distance-object_1.distance)/smoothness, 0.0, 1.0 );
+
+    float dist = mix( object_2.distance, object_1.distance, h ) - smoothness*h*(1.0-h);
+    return Object(dist, object_1.material_id);
 }
 
 // A repetition operator, taken from Inigo Quilez
@@ -165,37 +176,30 @@ mat3 matRotZ(float angle) {
 // **************
 
 // A box. shape are the directional radii, rounding allows rounding
-float sdBox(vec3 pos, vec3 shape, float rounding) {
+Object sdBox(vec3 pos, vec3 shape, float rounding, int material_id) {
     vec3 q = abs(pos) - shape;
-    return length(max(q, 0.)) + min( max( q.x, max(q.y, q.z)), 0. ) - rounding;
+    return Object(length(max(q, 0.)) + min( max( q.x, max(q.y, q.z)), 0. ) - rounding, material_id);
 }
 
 // A sphere
-float sdSphere(vec3 pos,  float radius) {
-    return length(pos) - radius;
+Object sdSphere(vec3 pos,  float radius, int material_id) {
+    return Object(length(pos) - radius, material_id);
 }
 
-float sdCappedCylinder( vec3 pos, float height, float radius )
+Object sdCappedCylinder( vec3 pos, float height, float radius, int material_id)
 {
   vec2 d = abs(vec2(length(pos.xz),pos.y)) - vec2(height,radius);
-  return min(max(d.x,d.y),0.0) + length(max(d,0.0));
+  return Object(min(max(d.x,d.y),0.0) + length(max(d,0.0)), material_id);
 }
 
 // A plane oriented using a normal
-float sdPlane(vec3 pos, vec4 normal) {
-    return dot(pos, normal.xyz) + normal.w;
+Object sdPlane(vec3 pos, vec4 normal, int material_id) {
+    return Object(dot(pos, normal.xyz) + normal.w, material_id);
 }
 
 // An infinite horizontal plane
-float sdPlaneY(vec3 pos, float offset) {
-    return sdPlane(pos, vec4(0., 1., 0., offset));
-}
-
-float sdTriPrism(vec3 pos, vec3 p, vec2 h )
-{
-    p -= pos;
-    vec3 q = abs(p);
-    return max(q.z-h.y,max(q.x*0.866025+p.y*0.5,-p.y)-h.x*0.5);
+Object sdPlaneY(vec3 pos, float offset, int material_id) {
+    return sdPlane(pos, vec4(0., 1., 0., offset), material_id);
 }
 
 // *******************
@@ -203,42 +207,42 @@ float sdTriPrism(vec3 pos, vec3 p, vec2 h )
 // *******************
 
 // Distance function of the rails with details
-float sdTrack(vec3 ray_pos) {
-    float top_box = sdBox(ray_pos - vec3(0.,0.18,0.), vec3(0.15,0.01,10.), 0.);
-    float middle_box = sdBox(ray_pos - vec3(0., 0.08, 0.), vec3(0.08,0.08,10.), 0.);
-    float bottom_box = sdBox(ray_pos - vec3(0.,0.0,0.), vec3(0.15,0.01,10.), 0.);
-    return min(min(top_box, middle_box), bottom_box);
+Object sdTrack(vec3 ray_pos) {
+    Object top_box = sdBox(ray_pos - vec3(0.,0.18,0.), vec3(0.15,0.01,10.), 0., 1);
+    Object middle_box = sdBox(ray_pos - vec3(0., 0.08, 0.), vec3(0.08,0.08,10.), 0., 1);
+    Object bottom_box = sdBox(ray_pos - vec3(0.,0.0,0.), vec3(0.15,0.01,10.), 0., 1);
+    return opSharpUnion(opSharpUnion(top_box, middle_box), bottom_box);
 }
 
-float sdWoodBeams(vec3 ray_pos, float size) {
-    float top_bar = sdBox(ray_pos - vec3(0., size, 0.), vec3(size,0.2,0.2), 0.);
-    float left_bar = sdBox(ray_pos - vec3(-(size-1), 2, 0.), vec3(0.2,size+2,0.2), 0.);
-    float right_bar = sdBox(ray_pos - vec3((size-1), 2, 0.), vec3(0.2,size+2,0.2), 0.);
+Object sdWoodBeams(vec3 ray_pos, float size) {
+    Object top_bar = sdBox(ray_pos - vec3(0., size, 0.), vec3(size,0.2,0.2), 0., 0);
+    Object left_bar = sdBox(ray_pos - vec3(-(size-1), 2, 0.), vec3(0.2,size+2,0.2), 0., 0);
+    Object right_bar = sdBox(ray_pos - vec3((size-1), 2, 0.), vec3(0.2,size+2,0.2), 0., 0);
 
     return opSmoothUnion(top_bar, opSmoothUnion(left_bar, right_bar, 0.1), 0.1);
 }
 
 // Distance function of the rail track, where distance is the distance between boards
-float sdCartTrack(vec3 ray_pos, int distance) {
+Object sdCartTrack(vec3 ray_pos, int distance) {
     // Draw the wooden boards
     ray_pos = opRep(ray_pos, vec3(0., 0., distance));
 
-    float board_distance = sdBox(ray_pos, vec3(2,0.1,0.4), 0.00);
+    Object board_distance = sdBox(ray_pos, vec3(2,0.1,0.4), 0.00, 0);
 
     // Draw board rail connectors
-    float connector_right_distance = sdBox(ray_pos - vec3(.85, .15, 0), vec3(.05), .0);
-    float connector_left_distance = sdBox(ray_pos - vec3(-0.85, .15, 0), vec3(.05), .0);
+    Object connector_right_distance = sdBox(ray_pos - vec3(.85, .15, 0), vec3(.05), .0, 0);
+    Object connector_left_distance = sdBox(ray_pos - vec3(-0.85, .15, 0), vec3(.05), .0, 0);
 
-    float connector_distance = opSharpUnion(connector_left_distance, connector_right_distance);
+    Object connector_distance = opSharpUnion(connector_left_distance, connector_right_distance);
 
     // Combine connector with boards
     board_distance = opSharpUnion(board_distance, connector_distance);
 
     // Draw the rails with details
-    float left_track = sdTrack(ray_pos - vec3(-1., 0.15, 0.));
-    float right_track = sdTrack(ray_pos - vec3(1., 0.15, 0.));
+    Object left_track = sdTrack(ray_pos - vec3(-1., 0.15, 0.));
+    Object right_track = sdTrack(ray_pos - vec3(1., 0.15, 0.));
 
-    float track_distance = opSharpUnion(left_track, right_track);
+    Object track_distance = opSharpUnion(left_track, right_track);
 
 
     // Combine the rails and the board
@@ -249,22 +253,22 @@ float sdCart(vec3 ray_pos) {
     return 1999;//sdCappedCylinder(opTx(ray_pos - path(uTime) - vec3(0.,-2.,8.), matRotZ(90)), 1., 1.);
 }
 
-float sdGround(vec3 ray_pos) {
-    return sdPlaneY(ray_pos, /*0.5*noise(ray_pos)*/ 0.2);
+Object sdGround(vec3 ray_pos) {
+    return sdPlaneY(ray_pos, /*0.5*noise(ray_pos)*/ 0.2, 2);
 }
 
-float sdTunnel(vec3 ray_pos, float size) {
-    float wall_distance = size - length(ray_pos.xy*vec2(1, 1));
+Object sdTunnel(vec3 ray_pos, float size) {
+    Object wall_distance = Object(size - length(ray_pos.xy*vec2(1, 1)), 2);
 
 
-    float ground_distance = sdGround(ray_pos);
+    Object ground_distance = sdGround(ray_pos);
 
     //wall_distance = opSmoothUnion(wall_distance, ground_distance,2 );
 
-    wall_distance = sdFbm(ray_pos, wall_distance);
+    wall_distance = Object(sdFbm(ray_pos, wall_distance.distance), wall_distance.material_id);
 
     // Draw the wooden beams
-    float beam_distance = sdWoodBeams(opRep(ray_pos, vec3(0., 0., 3)), size-0.7);
+    Object beam_distance = sdWoodBeams(opRep(ray_pos, vec3(0., 0., 3)), size-0.7);
 
     return opSharpUnion(wall_distance, beam_distance);
     //return opSmoothUnion(beam_distance, wall_distance, 0.05);
@@ -276,29 +280,29 @@ float sdTunnel(vec3 ray_pos, float size) {
 
 // Renderer based on https://github.com/electricsquare/raymarching-workshop
 
-float map(vec3 pos){
-    float tunnel_distance = sdTunnel(pos, 5);
+Object map(vec3 pos){
+    Object tunnel_distance = sdTunnel(pos, 5);
 
-    float track_distance = sdCartTrack(pos, 2);
+    Object track_distance = sdCartTrack(pos, 2);
 
-    float scene_distance = opSharpUnion(tunnel_distance, track_distance);
+    Object scene_distance = opSharpUnion(tunnel_distance, track_distance);
 
-    return min(scene_distance, sdCart(pos));
+    return scene_distance;
 }
 
-float light_map(vec3 pos) {
-    return sdSphere(pos - light_sources[0], 0.1);
+Object light_map(vec3 pos) {
+    return sdSphere(pos - light_sources[0], 0.1, 1);
 }
 
 vec3 calcNormal(vec3 p){
     vec2 e = vec2(EPSILON, 0.);
 
-    float d = map(p);
+    float d = map(p).distance;
 
     vec3 gradient = d - vec3(
-    map(p + e.xyy),
-    map(p + e.yxy),
-    map(p + e.yyx)
+    map(p + e.xyy).distance,
+    map(p + e.yxy).distance,
+    map(p + e.yyx).distance
     );
 
     return normalize(gradient);
@@ -312,7 +316,7 @@ float ray(vec3 ray_origin, vec3 ray_direction){
     for (int i=0; i<steps; i++) {
         vec3 pos = ray_origin + t*ray_direction;
 
-        float d = map(pos);
+        float d = map(pos).distance;
         
         if( d < EPSILON * t) return t;
         if (d > FAR_PLANE) return -1;
@@ -329,7 +333,7 @@ float light_ray(vec3 ray_origin, vec3 ray_direction){
     for (int i=0; i<steps; i++) {
         vec3 pos = ray_origin + t*ray_direction;
 
-        float d = light_map(pos);
+        float d = light_map(pos).distance;
         
         if( d < EPSILON * t) return t;
         if (d > FAR_PLANE) return -1;
@@ -340,7 +344,7 @@ float light_ray(vec3 ray_origin, vec3 ray_direction){
 
 // Shadow calculation inspired from https://iquilezles.org/articles/rmshadows/
 // Specifically https://www.shadertoy.com/view/lsf3zr
-float light_scan(vec3 pos) {
+float shadow_scan(vec3 pos) {
     vec3 light = light_sources[0];
     // TODO:Iterate over the light sources and take all of them into consideration
     vec3 light_direction = normalize(light - pos);
@@ -351,7 +355,7 @@ float light_scan(vec3 pos) {
     float t = 0.;
 
     for (int i = 0; i<32; i++) {
-        float h = map(pos + light_direction * t);
+        float h = map(pos + light_direction * t).distance;
         res = min(res, k*h/t);
         t += clamp(h, 0.1, 1.);
         if (res < EPSILON || t > max_t) break; 
@@ -372,8 +376,9 @@ vec3 render(vec3 ray_origin, vec3 ray_direction) {
     if (t > 0.){
         vec3 pos = ray_origin + t*ray_direction;
         vec3 nor = calcNormal(pos);
+        Object object = map(pos);
 
-        col = col * max(dot(normalize(ray_direction), nor), 0.) * light_scan(pos);
+        col = id_to_mat(object.material_id).color * max(dot(normalize(ray_direction), nor), 0.) * shadow_scan(pos);
     }
     col = mix(col , vec3(.0, .0, .0), smoothstep(0., .95, t*2/FAR_PLANE));
 
