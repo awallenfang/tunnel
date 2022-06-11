@@ -26,32 +26,62 @@ struct Light {
     float intensity;
 };
 
-// Source https://gist.github.com/patriciogonzalezvivo/670c22f3966e662d2f83
-float mod289(float x){return x - floor(x * (1.0 / 289.0)) * 289.0;}
-vec4 mod289(vec4 x){return x - floor(x * (1.0 / 289.0)) * 289.0;}
-vec4 perm(vec4 x){return mod289(((x * 34.0) + 1.0) * x);}
+float hash(vec3 p)  
+{
+    p  = 17.0*fract( p*0.3183099+vec3(.11,.17,.13) );
+    return fract( p.x*p.y*p.z*(p.x+p.y+p.z) );
+}
 
-float noise(vec3 p){
-    vec3 a = floor(p);
-    vec3 d = p - a;
-    d = d * d * (3.0 - 2.0 * d);
+float sdBase( in vec3 p )
+{
+    vec3 i = floor(p);
+    vec3 f = fract(p);
 
-    vec4 b = a.xxyy + vec4(0.0, 1.0, 0.0, 1.0);
-    vec4 k1 = perm(b.xyxy);
-    vec4 k2 = perm(k1.xyxy + b.zzww);
+	#define RAD(r) ((r)*(r)*0.7)
+    #define SPH(i,f,c) length(f-c)-RAD(hash(i+c))
+    
+    return min(min(min(SPH(i,f,vec3(0,0,0)),
+                       SPH(i,f,vec3(0,0,1))),
+                   min(SPH(i,f,vec3(0,1,0)),
+                       SPH(i,f,vec3(0,1,1)))),
+               min(min(SPH(i,f,vec3(1,0,0)),
+                       SPH(i,f,vec3(1,0,1))),
+                   min(SPH(i,f,vec3(1,1,0)),
+                       SPH(i,f,vec3(1,1,1)))));
+}
 
-    vec4 c = k2 + a.zzzz;
-    vec4 k3 = perm(c);
-    vec4 k4 = perm(c + 1.0);
+// https://iquilezles.org/articles/smin
+float smax( float a, float b, float k )
+{
+    float h = max(k-abs(a-b),0.0);
+    return max(a, b) + h*h*0.25/k;
+}
 
-    vec4 o1 = fract(k3 * (1.0 / 41.0));
-    vec4 o2 = fract(k4 * (1.0 / 41.0));
+float smin( float a, float b, float k )
+{
+    float h = max( k-abs(a-b), 0.0 )/k;
+    return min( a, b ) - h*h*k*(1.0/4.0);
+}
 
-    vec4 o3 = o2 * d.z + o1 * (1.0 - d.z);
-    vec2 o4 = o3.yw * d.x + o3.xz * (1.0 - d.x);
-
-    return o4.y * d.y + o4.x * (1.0 - d.y);
-    // return 0.;
+float sdFbm( vec3 p, float d )
+{
+   float s = 1.0;
+   for( int i=0; i<4; i++ )
+   {
+       // evaluate new octave
+       float n = s*sdBase(p);
+	
+       // add
+       n = smax(n,d-0.1*s,0.3*s);
+       d = smin(n,d      ,0.3*s);
+	
+       // prepare next octave
+       p = mat3( 0.00, 1.60, 1.20,
+                -1.60, 0.72,-0.96,
+                -1.20,-0.96, 1.28 )*p;
+       s = 0.5*s;
+   }
+   return d;
 }
 
 // A mod(float, int) without weird precision loss on the float
@@ -181,9 +211,9 @@ float sdTrack(vec3 ray_pos) {
 }
 
 float sdWoodBeams(vec3 ray_pos, float size) {
-    float top_bar = sdBox(ray_pos - vec3(0., size, 0.), vec3(size,0.2,0.2), 0.05);
-    float left_bar = sdBox(ray_pos - vec3(-(size-1), 2, 0.), vec3(0.2,size,0.2), 0.05);
-    float right_bar = sdBox(ray_pos - vec3((size-1), 2, 0.), vec3(0.2,size,0.2), 0.05);
+    float top_bar = sdBox(ray_pos - vec3(0., size, 0.), vec3(size,0.2,0.2), 0.);
+    float left_bar = sdBox(ray_pos - vec3(-(size-1), 2, 0.), vec3(0.2,size+2,0.2), 0.);
+    float right_bar = sdBox(ray_pos - vec3((size-1), 2, 0.), vec3(0.2,size+2,0.2), 0.);
 
     return opSmoothUnion(top_bar, opSmoothUnion(left_bar, right_bar, 0.1), 0.1);
 }
@@ -193,7 +223,7 @@ float sdCartTrack(vec3 ray_pos, int distance) {
     // Draw the wooden boards
     ray_pos = opRep(ray_pos, vec3(0., 0., distance));
 
-    float board_distance = sdBox(ray_pos, vec3(2,0.1,0.4), 0.05);
+    float board_distance = sdBox(ray_pos, vec3(2,0.1,0.4), 0.00);
 
     // Draw board rail connectors
     float connector_right_distance = sdBox(ray_pos - vec3(.85, .15, 0), vec3(.05), .0);
@@ -220,18 +250,21 @@ float sdCart(vec3 ray_pos) {
 }
 
 float sdGround(vec3 ray_pos) {
-    return sdPlaneY(ray_pos, 0.5*noise(ray_pos) -0.3);
+    return sdPlaneY(ray_pos, /*0.5*noise(ray_pos)*/ 0.2);
 }
 
 float sdTunnel(vec3 ray_pos, float size) {
-    float wall_distance = size - length(ray_pos.xy*vec2(1, 1)) + noise(ray_pos);
+    float wall_distance = size - length(ray_pos.xy*vec2(1, 1));
+
 
     float ground_distance = sdGround(ray_pos);
 
-    wall_distance = opSmoothUnion(wall_distance, ground_distance,2 );
+    //wall_distance = opSmoothUnion(wall_distance, ground_distance,2 );
+
+    wall_distance = sdFbm(ray_pos, wall_distance);
 
     // Draw the wooden beams
-    float beam_distance = sdWoodBeams(opRep(ray_pos, vec3(0., 0., 3)), size);
+    float beam_distance = sdWoodBeams(opRep(ray_pos, vec3(0., 0., 3)), size-0.7);
 
     return opSharpUnion(wall_distance, beam_distance);
     //return opSmoothUnion(beam_distance, wall_distance, 0.05);
@@ -314,7 +347,7 @@ float light_scan(vec3 pos) {
     float max_t = distance(pos,light);
 
     float res = 1.0;
-    float k = 2;
+    float k = 8;
     float t = 0.;
 
     for (int i = 0; i<32; i++) {
@@ -324,9 +357,8 @@ float light_scan(vec3 pos) {
         if (res < EPSILON || t > max_t) break; 
     }
 
-    return res;
+    return clamp(res, 0.01, 1.);
 }
-
 
 vec3 gamma_correction(vec3 col) {
     return pow(col, vec3(0.4545));
