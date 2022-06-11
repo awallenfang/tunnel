@@ -412,7 +412,7 @@ void main()
     vec2 uv = normalizeScreenCoords(gl_FragCoord.xy);
 
     vec3 camera_origin = camera_path(uTime);
-    vec3 camera_target = vec3(0., 0., 3.) + path(uTime) ;//+ vec3(4.5,-1,0);
+    vec3 camera_target = vec3(0., 0., 3.) + path(uTime) + vec3(4.,-1.5,0);
 
     light_sources[0] = camera_target;
 
