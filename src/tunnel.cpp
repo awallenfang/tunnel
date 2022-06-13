@@ -6,12 +6,13 @@
 #include <iostream>
 #include <chrono>
 
-int WINDOW_WIDTH = 1280;
-int WINDOW_HEIGHT = 720;
+int WINDOW_WIDTH = 128*4;
+int WINDOW_HEIGHT = 72*4;
+int FPS = 60;
 
 std::chrono::time_point<std::chrono::system_clock> start_time;
 
-float getTimeDelta();
+float getTimeDelta(int frame);
 
 glm::uvec2 uRes;
 
@@ -78,6 +79,8 @@ main(int, char* argv[]) {
     auto dates = get_filetime(vs) + get_filetime(fs);
     auto newdates = dates;
 
+    int frame = 0;
+
     // rendering loop
     while (!glfwWindowShouldClose(window)) {
         // check for shader reload
@@ -104,7 +107,9 @@ main(int, char* argv[]) {
         // render something...
         glUseProgram(shaderProgram);
 
-        glUniform1f(time, getTimeDelta());
+        // std::cout << getTimeDelta(frame) << "\n";
+
+        glUniform1f(time, getTimeDelta(frame));
         glUniform2ui(res, WINDOW_WIDTH, WINDOW_HEIGHT);
         glBindVertexArray(VAO);
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)0);
@@ -113,6 +118,7 @@ main(int, char* argv[]) {
         glfwSwapBuffers(window);
         // process window events
         glfwPollEvents();
+        frame++;
     }
 
 
@@ -127,7 +133,8 @@ void resizeCallback(GLFWwindow*, int width, int height)
     WINDOW_HEIGHT = height;
 }
 
-float getTimeDelta() {
-    auto now = std::chrono::system_clock::now();
-    return static_cast<float>((std::chrono::duration_cast<std::chrono::milliseconds>(now - start_time).count() % 500000) / 1000.f);
+float getTimeDelta(int frame) {
+    // auto now = std::chrono::system_clock::now();
+    // return static_cast<float>((std::chrono::duration_cast<std::chrono::milliseconds>(now - start_time).count() % 500000) / 1000.f);
+    return (float)frame / FPS;
 }

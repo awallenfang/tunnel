@@ -1,6 +1,7 @@
 #version 400 core
 #define FAR_PLANE 50.
 #define EPSILON 0.0001
+#define PI 3.14159
 
 out vec4 frag_color;
 uniform uvec2 uRes;
@@ -24,7 +25,7 @@ struct Material {
 };
 
 Light light_sources[1];
-Material materials[3];
+Material materials[4];
 
 float hash(vec3 p)  
 {
@@ -241,9 +242,9 @@ Object sdCartTrack(vec3 ray_pos, int distance) {
     return opSharpUnion(board_distance, track_distance);
 }
 
-float sdCart(vec3 ray_pos) {
-    return 1999;//sdCappedCylinder(opTx(ray_pos - path(uTime) - vec3(0.,-2.,8.), matRotZ(90)), 1., 1.);
-}
+// float sdCart(vec3 ray_pos) {
+//     return 1999;//sdCappedCylinder(opTx(ray_pos - path(uTime) - vec3(0.,-2.,8.), matRotZ(90)), 1., 1.);
+// }
 
 Object sdGround(vec3 ray_pos) {
     return sdPlaneY(ray_pos, /*0.5*noise(ray_pos)*/ 0.2, 2);
@@ -279,7 +280,9 @@ Object map(vec3 pos){
 
     Object scene_distance = opSharpUnion(tunnel_distance, track_distance);
 
-    return scene_distance;
+    Object light = sdSphere(pos - vec3(0., 0., 3.) - path(uTime), 1., 3);
+
+    return opSharpUnion(scene_distance, light);
 }
 
 Object light_map(vec3 pos) {
@@ -311,7 +314,7 @@ float ray(vec3 ray_origin, vec3 ray_direction){
         float d = map(pos).distance;
         
         if( d < EPSILON * t) return t;
-        if (d > FAR_PLANE) return -1;
+        if (d > FAR_PLANE) return -1.;
         t += d;
     }
     return t;
@@ -328,7 +331,7 @@ float light_ray(vec3 ray_origin, vec3 ray_direction){
         float d = light_map(pos).distance;
         
         if( d < EPSILON * t) return t;
-        if (d > FAR_PLANE) return -1;
+        if (d > FAR_PLANE) return -1.;
         t += d;
     }
     return t;
@@ -338,7 +341,8 @@ float light_ray(vec3 ray_origin, vec3 ray_direction){
 // Specifically https://www.shadertoy.com/view/lsf3zr
 vec3 light_scan(vec3 pos) {
     Light light = light_sources[0];
-    // TODO:Iterate over the light sources and take all of them into consideration
+    // TODO: Iterate over the light sources and take all of them into consideration
+    // TODO: Path tracing
     vec3 light_direction = normalize(light.position - pos);
     float max_t = distance(pos,light.position);
 
@@ -356,29 +360,121 @@ vec3 light_scan(vec3 pos) {
     return clamp(res, 0.01, 1.) * light.color;
 }
 
+// ***********
+// Path Tracer
+// ***********
+// With faked recursion
+vec3 random_from_hemisphere(vec3 normal) {
+    //TODO: Implement this
+    return normal;
+}
+
+vec3 trace_path_bounce_2(vec3 ray_origin, vec3 ray_direction) {
+    float t = ray(ray_origin, ray_direction);
+    if (t < -1.) {
+        // If nothing was hit, return black
+        return vec3(0.);
+    }
+    vec3 pos = ray_origin + t*ray_direction;
+    // TODO: optimize this right here
+    Object object = map(pos);
+    vec3 normal = calcNormal(pos);
+
+    vec3 emittance = materials[object.material_id].emission * materials[object.material_id].color;
+
+    vec3 new_ray_origin = ray_origin;
+    vec3 new_ray_direction = random_from_hemisphere(normal);
+
+    float probability = 2/(2*PI);
+
+    float cos_theta = dot(new_ray_direction, normal);
+    // TODO: BRDF
+    vec3 BRDF = vec3(0.5)/PI;
+
+    vec3 incoming = vec3(0.);//trace_path_bounce_1(new_ray_origin, new_ray_direction);
+
+    return emittance + (BRDF * incoming * cos_theta / probability);
+}
+
+vec3 trace_path_bounce_1(vec3 ray_origin, vec3 ray_direction) {
+    float t = ray(ray_origin, ray_direction);
+    if (t < -1.) {
+        // If nothing was hit, return black
+        return vec3(0.);
+    }
+    vec3 pos = ray_origin + t*ray_direction;
+    // TODO: optimize this right here
+    Object object = map(pos);
+    vec3 normal = calcNormal(pos);
+
+    vec3 emittance = materials[object.material_id].emission * materials[object.material_id].color;
+
+    vec3 new_ray_origin = ray_origin;
+    vec3 new_ray_direction = random_from_hemisphere(normal);
+
+    float probability = 2/(2*PI);
+
+    float cos_theta = dot(new_ray_direction, normal);
+    // TODO: BRDF
+    vec3 BRDF = vec3(0.5)/PI;
+
+    vec3 incoming = trace_path_bounce_2(new_ray_origin, new_ray_direction);
+
+    return emittance + (BRDF * incoming * cos_theta / probability);
+}
+
+vec3 trace_path(vec3 ray_origin, vec3 ray_direction) {
+    float t = ray(ray_origin, ray_direction);
+    if (t < -1.) {
+        // If nothing was hit, return black
+        return vec3(0.);
+    }
+    vec3 pos = ray_origin + t*ray_direction;
+    // TODO: optimize this right here
+    Object object = map(pos);
+    vec3 normal = calcNormal(pos);
+
+    vec3 emittance = materials[object.material_id].emission * materials[object.material_id].color;
+
+    vec3 new_ray_origin = ray_origin;
+    vec3 new_ray_direction = random_from_hemisphere(normal);
+
+    float probability = 2/(2*PI);
+
+    float cos_theta = dot(new_ray_direction, normal);
+    // TODO: BRDF
+    vec3 BRDF = vec3(0.5)/PI;
+
+    vec3 incoming = trace_path_bounce_1(new_ray_origin, new_ray_direction);
+
+    return emittance + (BRDF * incoming * cos_theta / probability);
+}
+
+
+
 vec3 gamma_correction(vec3 col) {
     return pow(col, vec3(0.4545));
 }
 
 vec3 render(vec3 ray_origin, vec3 ray_direction) {
 
-    vec3 col = vec3(.8, .5, .21);
+    vec3 col = trace_path(ray_origin, ray_direction);
 
-    float t = ray(ray_origin, ray_direction);
-    if (t > 0.){
-        vec3 pos = ray_origin + t*ray_direction;
-        vec3 nor = calcNormal(pos);
-        Object object = map(pos);
+    // vec3 col = vec3(.8, .5, .21);
 
+    // float t = ray(ray_origin, ray_direction);
+    // if (t > 0.){
+    //     vec3 pos = ray_origin + t*ray_direction;
+    //     vec3 nor = calcNormal(pos);
+    //     Object object = map(pos);
 
+    //     col = materials[object.material_id].color * max(dot(normalize(ray_direction), nor), 0.) * light_scan(pos);
+    // }
+    // col = mix(col , vec3(.0, .0, .0), smoothstep(0., .95, t*2/FAR_PLANE));
 
-        col = materials[object.material_id].color * max(dot(normalize(ray_direction), nor), 0.) * light_scan(pos);
-    }
-    col = mix(col , vec3(.0, .0, .0), smoothstep(0., .95, t*2/FAR_PLANE));
-
-    if (light_ray(ray_origin, ray_direction) > 0) {
-        col = vec3(1., 0, 0);
-    }
+    // if (light_ray(ray_origin, ray_direction) > 0) {
+    //     col = vec3(1., 0, 0);
+    // }
     return gamma_correction(col);
 }
 
@@ -397,11 +493,6 @@ vec3 getCameraRayDir(vec2 uv, vec3 camPos, vec3 camTarget) {
 }
 
 vec2 normalizeScreenCoords(vec2 screenCoords) {
-    // vec2 result = 2. * (screenCoords/uRes.xy - 0.5);
-    // result.y *= uRes.x / uRes.y;
-
-    // return result;
-
     return (2*screenCoords - vec2(uRes.xy)) / float(uRes.y);
 }
 
@@ -413,6 +504,8 @@ void main()
     materials[1] = Material(vec3(1.), 0., 0.);
     // Wall
     materials[2] = Material(vec3(0.271, 0.255, 0.247), 0., 0.);
+    // Light
+    materials[3] = Material(vec3(1.), 1., 0.);
 
     // vec2 uv = (2*gl_FragCoord.xy - vec2(uRes.xy)) / float(uRes.y);
     vec2 uv = normalizeScreenCoords(gl_FragCoord.xy);
