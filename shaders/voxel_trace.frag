@@ -61,7 +61,10 @@ Object sdSphere(vec3 pos, vec3 center, float radius, int mat) {
 }
 
 Object sdPlaneWave(vec3 pos, vec4 normal, int mat) {
-    return Object(dot(pos, normal.xyz) + normal.w + sin(pos.z + uTime*10)/3 * noise(pos + uTime/10.) - cos(pos.x*2)/3 * noise(pos), mat);
+    vec3 p = path2(pos.z);
+    vec3 dir = normalize(path2(pos.z) - path2(pos.z-1));
+    
+    return Object(dot(pos, normal.xyz) + normal.w + sin(pos.z + uTime*3)/2 * noise(pos + uTime/10.) - sin(((pos.x - p.x) * 0.3 * dir).x)/1 * noise(pos), mat);
 }
 
 vec3 campos;
