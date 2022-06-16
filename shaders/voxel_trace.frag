@@ -1,6 +1,7 @@
 #version 400 core
 #define FAR_PLANE 50.
 #define EPSILON 0.001
+#define PI 3.14159265
 
 out vec4 frag_color;
 
@@ -223,7 +224,10 @@ float sdTunnel(vec3 ray_pos, float size) {
 
 // Renderer based on https://github.com/electricsquare/raymarching-workshop
 
-float map(vec3 pos){
+// My tunnel:
+
+float map(vec3 pos, out int mat){
+    mat = 0;
     float tunnel_distance = sdTunnel(pos, 5);
 
     float track_distance = sdCartTrack(pos, 2);
@@ -233,15 +237,41 @@ float map(vec3 pos){
     return min(scene_distance, sdCart(pos));
 }
 
+vec3 path2(float z){ 
+    //return vec2(0); // Straight.
+    float a = sin(z * 0.11);
+    float b = cos(z * 0.14);
+    return vec3(a*4. -b*1.5, b*1.7 + a*1.5, z); 
+    //return vec2(a*4. -b*1.5, 0.); // Just X.
+    //return vec2(0, b*1.7 + a*1.5); // Just Y.
+}
+
+float map2(vec3 pos, out int mat) {
+    float size = 5;
+    float wall_distance = size - length(-path2(pos.z).xy + pos.xy*vec2(1, 1)) + noise(pos);
+    mat = 1;
+
+    return wall_distance;
+}
+
+int s = 1;
+
+float scene(vec3 pos, out int mat) {
+    if(s == 0) return map(pos,mat);
+    if(s == 1) return map2(pos,mat);
+}
+
+
 vec3 calcNormal(vec3 p){
     vec2 e = vec2(EPSILON, 0.);
 
-    float d = map(p);
+    int mat;
+    float d = scene(p, mat);
 
     vec3 gradient = d - vec3(
-    map(p + e.xyy),
-    map(p + e.yxy),
-    map(p + e.yyx)
+    scene(p + e.xyy, mat),
+    scene(p + e.yxy, mat),
+    scene(p + e.yyx, mat)
     );
 
     return normalize(gradient);
@@ -249,7 +279,7 @@ vec3 calcNormal(vec3 p){
 
 
 // trace ray using sphere tracing
-float trace(vec3 ro, vec3 rd, out bool hit,out vec3 normal)
+float trace(vec3 ro, vec3 rd, out bool hit,out vec3 normal, out int mat)
 {
     const int maxSteps = 100;
     const float hitThreshold = 0.001;
@@ -258,7 +288,7 @@ float trace(vec3 ro, vec3 rd, out bool hit,out vec3 normal)
     for(int i=0; i<maxSteps; i++)
     {
         vec3 pos = ro + t * rd;
-        float d = map(pos);
+        float d = scene(pos, mat);
 	    
         if (d < hitThreshold) {
             hit = true;
@@ -272,9 +302,7 @@ float trace(vec3 ro, vec3 rd, out bool hit,out vec3 normal)
     return -1;
 }
 
-// Amanatides & Woo style voxel traversal
-float voxelsize = 0.3; // in world space
-//const vec3 voxelSize = vec3(0.2);
+float voxelsize = 0.5; 
 
 vec3 worldToVoxel(vec3 i)
 {
@@ -307,7 +335,7 @@ float voxel_trace(vec3 ro, vec3 rd, out bool hit, out vec3 hitNormal,out int mat
     hit = false;
     float hitT = 0.0;
     for(int i=0; i<maxSteps; i++) {
-        float d = map(voxelToWorld(voxel));        
+        float d = scene(voxelToWorld(voxel), mat);        
         if (d <= isoValue) {
             hit = true;
 	    	hitVoxel = voxel;
@@ -319,7 +347,6 @@ float voxel_trace(vec3 ro, vec3 rd, out bool hit, out vec3 hitNormal,out int mat
             tMax.x += tDelta.x;
 			
 			hitNormal = vec3(-step.x, 0.0, 0.0);
-            mat = 1;
 			hitT = tMax.x;
         } else if (tMax.y < tMax.z) {
             voxel.y += step.y;
@@ -327,14 +354,12 @@ float voxel_trace(vec3 ro, vec3 rd, out bool hit, out vec3 hitNormal,out int mat
 			
 			hitNormal = vec3(0.0, -step.y, 0.0);		
 			hitT = tMax.y;
-            mat = 2;
         } else {
             voxel.z += step.z;
             tMax.z += tDelta.z;
 			
 			hitNormal = vec3(0.0, 0.0, -step.z);		
 			hitT = tMax.z;
-            mat = 3;
         }   
     }
     mat = 0;
@@ -343,15 +368,15 @@ float voxel_trace(vec3 ro, vec3 rd, out bool hit, out vec3 hitNormal,out int mat
 
 vec3 material(int mat) {
     if(mat == 1) {
-        return vec3(1., 0.,0.);
+        return vec3(0.5, 0.5, 0.5);
     }
     if(mat == 2) {
-        return vec3(0., 1.,0.);
+        return vec3(1.0, 0.5, 0.5);
     }
     if(mat == 3) {
         return vec3(0., 0.,1.);
     }
-    return vec3(.8, .5, .21);;
+    return vec3(.8, .5, .21);
 }
 
 vec3 render(vec3 ro, vec3 rd) {
@@ -365,9 +390,9 @@ vec3 render(vec3 ro, vec3 rd) {
     float t = voxel_trace(ro, rd, hit, nor, mat);
     nor = -nor;
 #else
-    float t = trace(ro, rd, hit, nor);
+    float t = trace(ro, rd, hit, nor,mat);
 #endif
-
+    
     vec3 col = material(mat);
     if(hit) {
         vec3 pos = ro + t*rd;
@@ -382,16 +407,23 @@ vec3 render(vec3 ro, vec3 rd) {
 
 void main()
 {
-    vec2 pixel = (gl_FragCoord.xy / vec2(uRes.xy))*2.0-1.0;
+    vec2 uv = (gl_FragCoord.xy / vec2(uRes.xy))*2.0-1.0;
 
     // compute ray origin and direction
     float asp = uRes.x / uRes.y;
-    vec3 rd = normalize(vec3(asp*pixel.x, pixel.y, -2.0));
-    vec3 ro = vec3(0.0, 2.0, 4.0 - uTime);
+    
+    float z = uTime * 5.;
+    vec3 ro = path2(-z);
+    vec3 prev = path2(-(z-1));
+    vec3 lookdir = normalize(ro-prev);
+    vec3 move = lookdir - vec3(0.,0.,-1.);
+    vec2 uvmod = uv + move.xy;
+
+    vec3 rd = normalize(vec3(asp*uvmod.x, uvmod.y, lookdir.z));
+    //rd = normalize(vec3(asp*uv.x,uv.y,-2.));
     ro += rd*2.0;
 		
-    //voxelsize = mix(0.05, 0.7, (sin(uTime) + 1) / 2.0);
-    voxelsize = 0.1;
+    //voxelsize = mix(0.05, 0.75, (sin(uTime) + 1) / 2.0);
 
     vec3 rgb = render(ro, rd);
 
