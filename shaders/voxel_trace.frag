@@ -47,6 +47,7 @@ vec3 path2(float z){
     
     float x = a*4. -b*1.5;
     float y = b*4 + a*1.5;
+    y = 0.;
     return vec3(x, y, z); 
 }
 
@@ -60,7 +61,7 @@ Object sdSphere(vec3 pos, vec3 center, float radius, int mat) {
 }
 
 Object sdPlaneWave(vec3 pos, vec4 normal, int mat) {
-    return Object(dot(pos, normal.xyz) + normal.w + sin(pos.z + uTime) * noise(pos) - cos(pos.x) * noise(pos), mat);
+    return Object(dot(pos, normal.xyz) + normal.w + sin(pos.z + uTime*10)/3 * noise(pos + uTime/10.) - cos(pos.x*2)/3 * noise(pos), mat);
 }
 
 vec3 campos;
@@ -68,8 +69,8 @@ vec3 campos;
 Object map(vec3 pos) {
     float size = 5;
     vec2 p = -path2(pos.z).xy + pos.xy*vec2(1, 1);
-    Object wall_distance = Object(size - length(p),1);//+ noise(pos)*2;
-    Object planeDist = sdPlaneWave(pos, vec4(0,1., 0, 6), 2);
+    Object wall_distance = Object(size - length(p) + noise(pos),1);
+    Object planeDist = sdPlaneWave(pos, vec4(0,1., 0, 3.5), 2);
 
     //float spheredist = sdSphere(pos, path2(campos.z - 5.), 1.);
     //if(spheredist < wall_distance) mat = 2;
@@ -229,10 +230,10 @@ void main()
     // compute ray origin and direction
     float asp = uRes.x / uRes.y;
     
-    float z = uTime * 5.;
-    vec3 ro = path2(-z);
-    if(ro.y < 0) ro.y *= 0.8;
-    vec3 prev = path2(-(z-1));
+    float z = -uTime * 5.;
+    vec3 ro = path2(z);
+    //if(ro.y < 0) ro.y *= 0.8;
+    vec3 prev = path2((z+1));
     vec3 lookdir = normalize(ro-prev);
     vec3 move = lookdir - vec3(0.,0.,-1.);
     vec2 uvmod = uv + move.xy;
