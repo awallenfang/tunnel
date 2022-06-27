@@ -1,4 +1,4 @@
-#version 400 core
+#version 450 core
 #define FAR_PLANE 50.
 #define EPSILON 0.0001
 #define PI 3.14159
@@ -13,19 +13,54 @@ struct Light {
     float intensity;
 };
 
-struct Object {
-    float distance;
-    int material_id;
-};
-
 struct Material {
     vec3 color;
-    float emission;
+    vec3 emission;
     float roughness;
+};
+
+struct Object {
+    float distance;
+    Material material;
 };
 
 Light light_sources[1];
 Material materials[4];
+
+
+// A single iteration of Bob Jenkins' One-At-A-Time hashing algorithm.
+uint hash( uint x ) {
+    x += ( x << 10u );
+    x ^= ( x >>  6u );
+    x += ( x <<  3u );
+    x ^= ( x >> 11u );
+    x += ( x << 15u );
+    return x;
+}
+
+// Compound versions of the hashing algorithm I whipped together.
+uint hash( uvec2 v ) { return hash( v.x ^ hash(v.y)                         ); }
+uint hash( uvec3 v ) { return hash( v.x ^ hash(v.y) ^ hash(v.z)             ); }
+uint hash( uvec4 v ) { return hash( v.x ^ hash(v.y) ^ hash(v.z) ^ hash(v.w) ); }
+
+// Construct a float with half-open range [0:1] using low 23 bits.
+// All zeroes yields 0.0, all ones yields the next smallest representable value below 1.0.
+float floatConstruct( uint m ) {
+    const uint ieeeMantissa = 0x007FFFFFu; // binary32 mantissa bitmask
+    const uint ieeeOne      = 0x3F800000u; // 1.0 in IEEE binary32
+
+    m &= ieeeMantissa;                     // Keep only mantissa bits (fractional part)
+    m |= ieeeOne;                          // Add fractional part to 1.0
+
+    float  f = uintBitsToFloat( m );       // Range [1:2]
+    return f - 1.0;                        // Range [0:1]
+}
+
+// Pseudo-random value in half-open range [0:1].
+float random( float x ) { return floatConstruct(hash(floatBitsToUint(x))); }
+float random( vec2  v ) { return floatConstruct(hash(floatBitsToUint(v))); }
+float random( vec3  v ) { return floatConstruct(hash(floatBitsToUint(v))); }
+float random( vec4  v ) { return floatConstruct(hash(floatBitsToUint(v))); }
 
 float hash(vec3 p)  
 {
@@ -115,7 +150,7 @@ Object opSmoothUnion(Object object_1, Object object_2, float smoothness) {
     float h = clamp( 0.5 + 0.5*(object_2.distance-object_1.distance)/smoothness, 0.0, 1.0 );
 
     float dist = mix( object_2.distance, object_1.distance, h ) - smoothness*h*(1.0-h);
-    return Object(dist, object_1.material_id);
+    return Object(dist, object_1.material);
 }
 
 // A repetition operator, taken from Inigo Quilez
@@ -171,23 +206,23 @@ mat3 matRotZ(float angle) {
 // A box. shape are the directional radii, rounding allows rounding
 Object sdBox(vec3 pos, vec3 shape, float rounding, int material_id) {
     vec3 q = abs(pos) - shape;
-    return Object(length(max(q, 0.)) + min( max( q.x, max(q.y, q.z)), 0. ) - rounding, material_id);
+    return Object(length(max(q, 0.)) + min( max( q.x, max(q.y, q.z)), 0. ) - rounding, materials[material_id]);
 }
 
 // A sphere
 Object sdSphere(vec3 pos,  float radius, int material_id) {
-    return Object(length(pos) - radius, material_id);
+    return Object(length(pos) - radius, materials[material_id]);
 }
 
 Object sdCappedCylinder( vec3 pos, float height, float radius, int material_id)
 {
   vec2 d = abs(vec2(length(pos.xz),pos.y)) - vec2(height,radius);
-  return Object(min(max(d.x,d.y),0.0) + length(max(d,0.0)), material_id);
+  return Object(min(max(d.x,d.y),0.0) + length(max(d,0.0)), materials[material_id]);
 }
 
 // A plane oriented using a normal
 Object sdPlane(vec3 pos, vec4 normal, int material_id) {
-    return Object(dot(pos, normal.xyz) + normal.w, material_id);
+    return Object(dot(pos, normal.xyz) + normal.w, materials[material_id]);
 }
 
 // An infinite horizontal plane
@@ -251,14 +286,14 @@ Object sdGround(vec3 ray_pos) {
 }
 
 Object sdTunnel(vec3 ray_pos, float size) {
-    Object wall_distance = Object(size - length(ray_pos.xy*vec2(1, 1)), 2);
+    Object wall_distance = Object(size - length(ray_pos.xy*vec2(1, 1)), materials[2]);
 
 
     Object ground_distance = sdGround(ray_pos);
 
     //wall_distance = opSmoothUnion(wall_distance, ground_distance,2 );
 
-    wall_distance = Object(sdFbm(ray_pos, wall_distance.distance), wall_distance.material_id);
+    wall_distance = Object(sdFbm(ray_pos, wall_distance.distance), materials[2]);
 
     // Draw the wooden beams
     Object beam_distance = sdWoodBeams(opRep(ray_pos, vec3(0., 0., 3)), size-0.7);
@@ -270,8 +305,6 @@ Object sdTunnel(vec3 ray_pos, float size) {
 // *********
 // Rendering
 // *********
-
-// Renderer based on https://github.com/electricsquare/raymarching-workshop
 
 Object map(vec3 pos){
     Object tunnel_distance = sdTunnel(pos, 5);
@@ -363,102 +396,104 @@ vec3 light_scan(vec3 pos) {
 // ***********
 // Path Tracer
 // ***********
-// With faked recursion
-vec3 random_from_hemisphere(vec3 normal) {
-    //TODO: Implement this
-    return normal;
-}
 
-vec3 trace_path_bounce_2(vec3 ray_origin, vec3 ray_direction) {
-    float t = ray(ray_origin, ray_direction);
-    if (t < -1.) {
-        // If nothing was hit, return black
-        return vec3(0.);
+//https://raytracing.github.io/books/RayTracingInOneWeekend.html
+vec3 random_from_unit_sphere(inout uint sample_seed) {
+    while (true) {
+        float x = random(vec4(gl_FragCoord.xy, uTime, sample_seed));
+        sample_seed += 1.;
+        float y = random(vec4(gl_FragCoord.xy, uTime, sample_seed));
+        sample_seed += 1.;
+        float z = random(vec4(gl_FragCoord.xy, uTime, sample_seed));
+        sample_seed += 1.;
+
+        vec3 vector = vec3(x,y,z);
+
+        if (length(vector) >= 1) {
+            continue;
+        }
+
+        return vector;
     }
-    vec3 pos = ray_origin + t*ray_direction;
-    // TODO: optimize this right here
-    Object object = map(pos);
-    vec3 normal = calcNormal(pos);
-
-    vec3 emittance = materials[object.material_id].emission * materials[object.material_id].color;
-
-    vec3 new_ray_origin = ray_origin;
-    vec3 new_ray_direction = random_from_hemisphere(normal);
-
-    float probability = 2/(2*PI);
-
-    float cos_theta = dot(new_ray_direction, normal);
-    // TODO: BRDF
-    vec3 BRDF = vec3(0.5)/PI;
-
-    vec3 incoming = vec3(0.);//trace_path_bounce_1(new_ray_origin, new_ray_direction);
-
-    return emittance + (BRDF * incoming * cos_theta / probability);
 }
 
-vec3 trace_path_bounce_1(vec3 ray_origin, vec3 ray_direction) {
-    float t = ray(ray_origin, ray_direction);
-    if (t < -1.) {
-        // If nothing was hit, return black
-        return vec3(0.);
+uint wang_hash(inout uint seed)
+{
+    seed = uint(seed ^ uint(61)) ^ uint(seed >> uint(16));
+    seed *= uint(9);
+    seed = seed ^ (seed >> 4);
+    seed *= uint(0x27d4eb2d);
+    seed = seed ^ (seed >> 15);
+    return seed;
+}
+
+float RandomFloat01(inout uint seed)
+{
+    return float(wang_hash(seed)) / 4294967296.0;
+}
+
+vec3 RandomUnitVector(inout uint seed)
+{
+    float z = RandomFloat01(seed) * 2.0f - 1.0f;
+    float a = RandomFloat01(seed) * 2 * 3.14159265359f;
+    float r = sqrt(1.0f - z * z);
+    float x = r * cos(a);
+    float y = r * sin(a);
+
+    return vec3(x, y, z);
+}
+
+
+// Based on: https://github.com/quaiquai/ProjectLink-GLSL-Path-Tracer/blob/master/shaders/pathtracing_main.fs
+vec3 trace_path(in vec3 ray_origin, in vec3 ray_direction, int max_depth, inout uint seed) {
+    wang_hash(seed);
+    vec3 radiance = vec3(0.);
+    vec3 throughput = vec3(1.);
+
+    vec3 origin = ray_origin;
+    vec3 direction = ray_direction;
+
+    for (int depth = 0; depth <= max_depth; depth++) {
+        float t = ray(origin, direction);
+        vec3 hit_pos = origin + t*direction;
+        vec3 normal = calcNormal(hit_pos);
+        Object object = map(hit_pos);
+
+        // Recalculate the positional values
+        origin = hit_pos + EPSILON * normal;
+        direction = normalize(reflect(direction, normal) + RandomUnitVector(seed));
+        
+
+        // TODO: Percent specular
+
+        radiance += object.material.emission * throughput;
+
+        throughput *= object.material.color;
+
+        // Russian Roulette
+        float p = max(throughput.x, max(throughput.y, throughput.z));
+        if (RandomFloat01(seed) > p) break;
+
+        throughput *= 1. / p;
+
     }
-    vec3 pos = ray_origin + t*ray_direction;
-    // TODO: optimize this right here
-    Object object = map(pos);
-    vec3 normal = calcNormal(pos);
+    
 
-    vec3 emittance = materials[object.material_id].emission * materials[object.material_id].color;
-
-    vec3 new_ray_origin = ray_origin;
-    vec3 new_ray_direction = random_from_hemisphere(normal);
-
-    float probability = 2/(2*PI);
-
-    float cos_theta = dot(new_ray_direction, normal);
-    // TODO: BRDF
-    vec3 BRDF = vec3(0.5)/PI;
-
-    vec3 incoming = trace_path_bounce_2(new_ray_origin, new_ray_direction);
-
-    return emittance + (BRDF * incoming * cos_theta / probability);
+    return radiance;
 }
-
-vec3 trace_path(vec3 ray_origin, vec3 ray_direction) {
-    float t = ray(ray_origin, ray_direction);
-    if (t < -1.) {
-        // If nothing was hit, return black
-        return vec3(0.);
-    }
-    vec3 pos = ray_origin + t*ray_direction;
-    // TODO: optimize this right here
-    Object object = map(pos);
-    vec3 normal = calcNormal(pos);
-
-    vec3 emittance = materials[object.material_id].emission * materials[object.material_id].color;
-
-    vec3 new_ray_origin = ray_origin;
-    vec3 new_ray_direction = random_from_hemisphere(normal);
-
-    float probability = 2/(2*PI);
-
-    float cos_theta = dot(new_ray_direction, normal);
-    // TODO: BRDF
-    vec3 BRDF = vec3(0.5)/PI;
-
-    vec3 incoming = trace_path_bounce_1(new_ray_origin, new_ray_direction);
-
-    return emittance + (BRDF * incoming * cos_theta / probability);
-}
-
-
 
 vec3 gamma_correction(vec3 col) {
     return pow(col, vec3(0.4545));
 }
 
-vec3 render(vec3 ray_origin, vec3 ray_direction) {
+vec3 render(vec3 ray_origin, vec3 ray_direction, inout uint seed) {
+    int samples = 64;
+    vec3 col = vec3(0.);
 
-    vec3 col = trace_path(ray_origin, ray_direction);
+    for (int i = 0; i < samples; i++) {
+        col += trace_path(ray_origin, ray_direction, 10, seed);
+    }
+    col /= samples;
 
     // vec3 col = vec3(.8, .5, .21);
 
@@ -468,7 +503,7 @@ vec3 render(vec3 ray_origin, vec3 ray_direction) {
     //     vec3 nor = calcNormal(pos);
     //     Object object = map(pos);
 
-    //     col = materials[object.material_id].color * max(dot(normalize(ray_direction), nor), 0.) * light_scan(pos);
+    //     col = object.material.color * max(dot(normalize(ray_direction), nor), 0.) * light_scan(pos);
     // }
     // col = mix(col , vec3(.0, .0, .0), smoothstep(0., .95, t*2/FAR_PLANE));
 
@@ -498,26 +533,30 @@ vec2 normalizeScreenCoords(vec2 screenCoords) {
 
 void main()
 {
+    uint sample_seed = uint(uint(gl_FragCoord.x) * uint(1973) + uint(gl_FragCoord.y) * uint(9277) + uint(uTime) * uint(26699)) | uint(1);;
+
     // Wood
-    materials[0] = Material(vec3(.8, .5, .21), 0., 0.);
+    materials[0] = Material(vec3(.8, .5, .21), vec3(0.), 0.);
     // Rails
-    materials[1] = Material(vec3(1.), 0., 0.);
+    materials[1] = Material(vec3(1.), vec3(0.), 0.);
     // Wall
-    materials[2] = Material(vec3(0.271, 0.255, 0.247), 0., 0.);
+    materials[2] = Material(vec3(0.271, 0.255, 0.247), vec3(0.), 0.);
     // Light
-    materials[3] = Material(vec3(1.), 1., 0.);
+    materials[3] = Material(vec3(1.), vec3(1., 245./255., 182./255.), 0.);
 
     // vec2 uv = (2*gl_FragCoord.xy - vec2(uRes.xy)) / float(uRes.y);
     vec2 uv = normalizeScreenCoords(gl_FragCoord.xy);
 
     vec3 camera_origin = camera_path(uTime);
-    vec3 camera_target = vec3(0., 0., 3.) + path(uTime) + vec3(4.,-1.5,0);
+    vec3 camera_target = vec3(0., 0., 3.) + path(uTime);
+
+    //TODO: Implement jitter for light Antialiasing
 
     light_sources[0] = Light(camera_target, vec3(1.), 0.);
 
     vec3 camera_direction = getCameraRayDir(uv, camera_origin, camera_target);
 
-    vec3 col = render(camera_origin, camera_direction);
+    vec3 col = render(camera_origin, camera_direction, sample_seed);
     
     frag_color = vec4(col, 1.0);
 }

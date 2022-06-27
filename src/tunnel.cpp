@@ -6,8 +6,8 @@
 #include <iostream>
 #include <chrono>
 
-int WINDOW_WIDTH = 128*4;
-int WINDOW_HEIGHT = 72*4;
+int WINDOW_WIDTH = 1920/8;
+int WINDOW_HEIGHT = 1080/8;
 int FPS = 60;
 
 std::chrono::time_point<std::chrono::system_clock> start_time;
@@ -27,6 +27,10 @@ resizeCallback(GLFWwindow* window, int width, int height);
 // called whenever the window gets resized
 void
 resizeCallback(GLFWwindow* window, int width, int height);
+
+void 
+screendump(int W, int H);
+
 
 int
 main(int, char* argv[]) {
@@ -71,6 +75,10 @@ main(int, char* argv[]) {
 
     unsigned int IBO = makeBuffer(GL_ELEMENT_ARRAY_BUFFER, GL_STATIC_DRAW, sizeof(indices), indices);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, IBO);
+
+
+    GLuint tex_output;
+    glGenTextures(1, &tex_output);
 
 	// Define shader files to check for real-time recompiling
     const auto vs = "../shaders/tunnel_gem.vert";
@@ -119,8 +127,9 @@ main(int, char* argv[]) {
         // process window events
         glfwPollEvents();
         frame++;
+        //break;
     }
-
+    screendump(WINDOW_WIDTH, WINDOW_HEIGHT);
 
     glfwTerminate();
 }
@@ -138,3 +147,18 @@ float getTimeDelta(int frame) {
     // return static_cast<float>((std::chrono::duration_cast<std::chrono::milliseconds>(now - start_time).count() % 500000) / 1000.f);
     return (float)frame / FPS;
 }
+
+void screendump(int W, int H) {
+    FILE   *out = fopen("screenshot.tga","wb");
+    char   *pixel_data = new char[3*W*H];
+    short  TGAhead[] = { 0, 2, 0, 0, 0, 0, W, H, 24 };
+
+    glReadBuffer(GL_FRONT);
+    glReadPixels(0, 0, W, H, GL_BGR, GL_UNSIGNED_BYTE, pixel_data);
+
+    fwrite(&TGAhead,sizeof(TGAhead),1,out);
+    fwrite(pixel_data, 3*W*H, 1, out);
+    fclose(out);
+
+    delete[] pixel_data; 
+} 
