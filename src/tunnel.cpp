@@ -5,9 +5,10 @@
 #include "helper.hpp"
 #include <iostream>
 #include <chrono>
+#include <string>
 
-int WINDOW_WIDTH = 1920/8;
-int WINDOW_HEIGHT = 1080/8;
+int WINDOW_WIDTH = 1280;
+int WINDOW_HEIGHT = 720;
 int FPS = 60;
 
 std::chrono::time_point<std::chrono::system_clock> start_time;
@@ -21,6 +22,8 @@ glm::vec3 z;
 std::vector<geometry> objects;
 geometry object;
 
+unsigned int framebuffer_handle = 0;
+
 void
 resizeCallback(GLFWwindow* window, int width, int height);
 
@@ -29,8 +32,9 @@ void
 resizeCallback(GLFWwindow* window, int width, int height);
 
 void 
-screendump(int W, int H);
+screendump(int W, int H, int frame);
 
+void write_frame(int W, int H, int frame);
 
 int
 main(int, char* argv[]) {
@@ -51,6 +55,8 @@ main(int, char* argv[]) {
     glUseProgram(shaderProgram);
     int res = glGetUniformLocation(shaderProgram, "uRes");
     int time = glGetUniformLocation(shaderProgram, "uTime");
+    int tex_loc = glGetUniformLocation(shaderProgram, "tex");
+    int seed = glGetUniformLocation(shaderProgram, "seed");
 
     // vertex data
     float vertices[] = {
@@ -76,9 +82,33 @@ main(int, char* argv[]) {
     unsigned int IBO = makeBuffer(GL_ELEMENT_ARRAY_BUFFER, GL_STATIC_DRAW, sizeof(indices), indices);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, IBO);
 
+    GLuint accum_framebuffer;
+    glGenFramebuffers(1, &accum_framebuffer);
+    glBindFramebuffer(GL_FRAMEBUFFER, accum_framebuffer);
 
-    GLuint tex_output;
-    glGenTextures(1, &tex_output);
+    GLuint texColorBuffer;
+    glGenTextures(1, &texColorBuffer);
+    glBindTexture(GL_TEXTURE_2D, texColorBuffer);
+
+    glTexImage2D(
+        GL_TEXTURE_2D, 0, GL_RGB, WINDOW_WIDTH, WINDOW_HEIGHT, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL
+    );
+
+    glFramebufferTexture2D(
+        GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texColorBuffer, 0
+    );
+
+    unsigned int rbo;
+    glGenRenderbuffers(1, &rbo);
+    glBindRenderbuffer(GL_RENDERBUFFER, rbo); 
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, 800, 600);  
+    glBindRenderbuffer(GL_RENDERBUFFER, 0);
+
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rbo);
+
+    if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+	std::cout << "ERROR::FRAMEBUFFER:: Framebuffer is not complete!" << std::endl;
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);  
 
 	// Define shader files to check for real-time recompiling
     const auto vs = "../shaders/tunnel_gem.vert";
@@ -91,6 +121,9 @@ main(int, char* argv[]) {
 
     // rendering loop
     while (!glfwWindowShouldClose(window)) {
+        const auto p1 = std::chrono::system_clock::now();
+
+        int time_seed = std::chrono::duration_cast<std::chrono::milliseconds>(p1.time_since_epoch()).count();
         // check for shader reload
         newdates = get_filetime(vs) + get_filetime(fs);
         if (newdates != dates) {
@@ -98,9 +131,11 @@ main(int, char* argv[]) {
             vertexShader = compileShader("tunnel_gem.vert", GL_VERTEX_SHADER);
             fragmentShader = compileShader("tunnel_gem.frag", GL_FRAGMENT_SHADER);
             shaderProgram = linkProgram(vertexShader, fragmentShader);
+            
             res = glGetUniformLocation(shaderProgram, "uRes");
             time = glGetUniformLocation(shaderProgram, "uTime");
-
+            tex_loc = glGetUniformLocation(shaderProgram, "tex");
+            seed = glGetUniformLocation(shaderProgram, "time_seed");
 
             glDeleteShader(fragmentShader);
             glDeleteShader(vertexShader);
@@ -115,22 +150,33 @@ main(int, char* argv[]) {
         // render something...
         glUseProgram(shaderProgram);
 
-        // std::cout << getTimeDelta(frame) << "\n";
 
+        glBindFramebuffer(GL_FRAMEBUFFER, accum_framebuffer);
+
+
+        // std::cout << getTimeDelta(frame) << "\n";
+        glBindTextureUnit(0, texColorBuffer);
+        glUniform1i(tex_loc, 0);
         glUniform1f(time, getTimeDelta(frame));
+        glUniform1f(seed, time_seed);
         glUniform2ui(res, WINDOW_WIDTH, WINDOW_HEIGHT);
         glBindVertexArray(VAO);
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)0);
 
-        // swap buffers == show rendered content
+        glBlitNamedFramebuffer(accum_framebuffer, 0, 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, NULL, GL_NEAREST);
+        // swap buffers with window == show rendered content
         glfwSwapBuffers(window);
         // process window events
         glfwPollEvents();
-        frame++;
-        //break;
-    }
-    screendump(WINDOW_WIDTH, WINDOW_HEIGHT);
 
+        screendump(WINDOW_WIDTH, WINDOW_HEIGHT, frame);
+        if (frame == 1) {
+            break;
+        }
+        //frame++;
+    }
+    
+    glDeleteFramebuffers(1, &accum_framebuffer);
     glfwTerminate();
 }
 
@@ -148,8 +194,10 @@ float getTimeDelta(int frame) {
     return (float)frame / FPS;
 }
 
-void screendump(int W, int H) {
-    FILE   *out = fopen("screenshot.tga","wb");
+void screendump(int W, int H, int frame) {
+    char num[20];
+    std::sprintf(num, "frame_%04d.tga", frame);
+    FILE   *out = fopen(num,"wb");
     char   *pixel_data = new char[3*W*H];
     short  TGAhead[] = { 0, 2, 0, 0, 0, 0, W, H, 24 };
 

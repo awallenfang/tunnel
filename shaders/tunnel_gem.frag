@@ -6,6 +6,8 @@
 out vec4 frag_color;
 uniform uvec2 uRes;
 uniform float uTime;
+uniform sampler2D tex;
+uniform int time_seed;
 
 struct Light {
     vec3 position;
@@ -25,7 +27,7 @@ struct Object {
 };
 
 Light light_sources[1];
-Material materials[4];
+Material materials[7];
 
 
 // A single iteration of Bob Jenkins' One-At-A-Time hashing algorithm.
@@ -285,6 +287,46 @@ Object sdGround(vec3 ray_pos) {
     return sdPlaneY(ray_pos, /*0.5*noise(ray_pos)*/ 0.2, 2);
 }
 
+Object sdBlueGems(vec3 ray_pos, int radius) {
+    Object min_object = Object(FAR_PLANE, materials[4]);
+
+    for (int i = 0; i<30; i++) {
+        Object iter_object = sdBox(ray_pos - vec3(cos(i * 0.4) * radius, sin(i * 0.4) * radius, i * 2), vec3(.2), 0., 4);
+
+        if (iter_object.distance < min_object.distance) {
+            min_object = iter_object;
+        }
+    }
+    return min_object;
+}
+
+Object sdRedGems(vec3 ray_pos, int radius) {
+    Object min_object = Object(FAR_PLANE, materials[5]);
+
+    for (int i = 0; i<30; i++) {
+        Object iter_object = sdBox(ray_pos - vec3(cos(i * 0.6 + 1) * radius, sin(i * 0.6 + 1) * radius, i * 2 + 1), vec3(.2), 0., 5);
+
+        if (iter_object.distance < min_object.distance) {
+            min_object = iter_object;
+        }
+    }
+    return min_object;
+}
+
+Object sdGreenGems(vec3 ray_pos, int radius) {
+    Object min_object = Object(FAR_PLANE, materials[6]);
+
+    for (int i = 0; i<30; i++) {
+        Object iter_object = sdBox(ray_pos - vec3(cos(i * 0.5 + 2) * radius, sin(i * 0.5 + 2) * radius, i * 2 + 1), vec3(.2), 0., 6);
+
+        if (iter_object.distance < min_object.distance) {
+            min_object = iter_object;
+        }
+    }
+    return min_object;
+}
+
+
 Object sdTunnel(vec3 ray_pos, float size) {
     Object wall_distance = Object(size - length(ray_pos.xy*vec2(1, 1)), materials[2]);
 
@@ -298,7 +340,11 @@ Object sdTunnel(vec3 ray_pos, float size) {
     // Draw the wooden beams
     Object beam_distance = sdWoodBeams(opRep(ray_pos, vec3(0., 0., 3)), size-0.7);
 
-    return opSharpUnion(wall_distance, beam_distance);
+    Object gems_distance = sdBlueGems(ray_pos, 5);
+    gems_distance = opSharpUnion(gems_distance, sdRedGems(ray_pos, 5));
+    gems_distance = opSharpUnion(gems_distance, sdGreenGems(ray_pos, 5));
+
+    return opSharpUnion(wall_distance, opSharpUnion(beam_distance, gems_distance));
     //return opSmoothUnion(beam_distance, wall_distance, 0.05);
 }
 
@@ -313,7 +359,7 @@ Object map(vec3 pos){
 
     Object scene_distance = opSharpUnion(tunnel_distance, track_distance);
 
-    Object light = sdSphere(pos - vec3(0., 0., 3.) - path(uTime), 1., 3);
+    Object light = sdSphere(pos - vec3(0., 0., 3.) - path(uTime), .2, 3);
 
     return opSharpUnion(scene_distance, light);
 }
@@ -401,11 +447,11 @@ vec3 light_scan(vec3 pos) {
 vec3 random_from_unit_sphere(inout uint sample_seed) {
     while (true) {
         float x = random(vec4(gl_FragCoord.xy, uTime, sample_seed));
-        sample_seed += 1.;
+        sample_seed += 1;
         float y = random(vec4(gl_FragCoord.xy, uTime, sample_seed));
-        sample_seed += 1.;
+        sample_seed += 1;
         float z = random(vec4(gl_FragCoord.xy, uTime, sample_seed));
-        sample_seed += 1.;
+        sample_seed += 1;
 
         vec3 vector = vec3(x,y,z);
 
@@ -487,11 +533,11 @@ vec3 gamma_correction(vec3 col) {
 }
 
 vec3 render(vec3 ray_origin, vec3 ray_direction, inout uint seed) {
-    int samples = 64;
+    int samples = 1;
     vec3 col = vec3(0.);
 
     for (int i = 0; i < samples; i++) {
-        col += trace_path(ray_origin, ray_direction, 10, seed);
+        col += trace_path(ray_origin, ray_direction, 3, seed);
     }
     col /= samples;
 
@@ -533,7 +579,7 @@ vec2 normalizeScreenCoords(vec2 screenCoords) {
 
 void main()
 {
-    uint sample_seed = uint(uint(gl_FragCoord.x) * uint(1973) + uint(gl_FragCoord.y) * uint(9277) + uint(uTime) * uint(26699)) | uint(1);;
+    uint sample_seed = uint(uint(gl_FragCoord.x) * uint(time_seed * 123) + uint(gl_FragCoord.y) * uint(time_seed + 9277) + uint(uTime) * uint(26699)) | uint(1);
 
     // Wood
     materials[0] = Material(vec3(.8, .5, .21), vec3(0.), 0.);
@@ -543,6 +589,13 @@ void main()
     materials[2] = Material(vec3(0.271, 0.255, 0.247), vec3(0.), 0.);
     // Light
     materials[3] = Material(vec3(1.), vec3(1., 245./255., 182./255.), 0.);
+    // Blue gem
+    materials[4] = Material(vec3(0., 0., 1.), vec3(0., 0., 1.), 0.);
+    // Red gem
+    materials[5] = Material(vec3(0., 0., 1.), vec3(1., 0., 0.), 0.);
+    // Green gem
+    materials[6] = Material(vec3(0., 0., 1.), vec3(0., 1., 0.), 0.);
+
 
     // vec2 uv = (2*gl_FragCoord.xy - vec2(uRes.xy)) / float(uRes.y);
     vec2 uv = normalizeScreenCoords(gl_FragCoord.xy);
@@ -556,7 +609,8 @@ void main()
 
     vec3 camera_direction = getCameraRayDir(uv, camera_origin, camera_target);
 
-    vec3 col = render(camera_origin, camera_direction, sample_seed);
-    
-    frag_color = vec4(col, 1.0);
+    //vec3 col = render(camera_origin, camera_direction, sample_seed);
+    vec4 accum_color = texture(tex, uv);
+
+    frag_color = vec4(vec3(0.5), 1.0) + accum_color;
 }
