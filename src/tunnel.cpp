@@ -5,13 +5,16 @@
 #include "helper.hpp"
 #include <iostream>
 #include <chrono>
+#include <string>
 
-const int WINDOW_WIDTH = 1280;
-const int WINDOW_HEIGHT = 720;
+int WINDOW_WIDTH = 200;
+int WINDOW_HEIGHT = 100;
+int FPS = 60;
+int samples = 64;
 
 std::chrono::time_point<std::chrono::system_clock> start_time;
 
-float getTimeDelta();
+float getTimeDelta(int frame);
 
 glm::uvec2 uRes;
 
@@ -19,6 +22,11 @@ glm::vec4 color;
 glm::vec3 z;
 std::vector<geometry> objects;
 geometry object;
+unsigned int fbo = 0;
+unsigned int framebuffer_tex = 0;
+unsigned int depth_rbo = 0;
+
+unsigned int framebuffer_handle = 0;
 
 void
 resizeCallback(GLFWwindow* window, int width, int height);
@@ -26,6 +34,47 @@ resizeCallback(GLFWwindow* window, int width, int height);
 // called whenever the window gets resized
 void
 resizeCallback(GLFWwindow* window, int width, int height);
+
+void 
+screendump(int W, int H, int frame);
+
+void write_frame(int W, int H, int frame);
+
+unsigned int
+create_texture_rgba32f(int width, int height) {
+    unsigned int handle;
+    glCreateTextures(GL_TEXTURE_2D, 1, &handle);
+    glTextureStorage2D(handle, 1, GL_RGBA32F, width, height);
+
+    return handle;
+}
+
+
+void build_framebuffer(int width, int height) {
+    if (framebuffer_tex) {
+        glDeleteTextures(1, &framebuffer_tex);
+    }
+
+    if (depth_rbo) {
+        glDeleteRenderbuffers(1, &depth_rbo);
+    }
+
+    if (fbo) {
+        glDeleteFramebuffers(1, &fbo);
+    }
+
+    framebuffer_tex = create_texture_rgba32f(width, height);
+    glCreateRenderbuffers(1, &depth_rbo);
+    glNamedRenderbufferStorage(depth_rbo, GL_DEPTH_COMPONENT32, width, height);
+
+    glCreateFramebuffers(1, &fbo);
+    glNamedFramebufferTexture(fbo, GL_COLOR_ATTACHMENT0, framebuffer_tex, 0);
+    glNamedFramebufferRenderbuffer(fbo, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depth_rbo);
+    if(glCheckNamedFramebufferStatus(fbo, GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+        printf("Incomplete FBO!");
+        std::terminate();
+    }
+}
 
 int
 main(int, char* argv[]) {
@@ -46,6 +95,10 @@ main(int, char* argv[]) {
     glUseProgram(shaderProgram);
     int res = glGetUniformLocation(shaderProgram, "uRes");
     int time = glGetUniformLocation(shaderProgram, "uTime");
+    int tex_loc = glGetUniformLocation(shaderProgram, "tex");
+    int seed = glGetUniformLocation(shaderProgram, "seed");
+    int sample_amt = glGetUniformLocation(shaderProgram, "samples");
+
 
     // vertex data
     float vertices[] = {
@@ -71,12 +124,16 @@ main(int, char* argv[]) {
     unsigned int IBO = makeBuffer(GL_ELEMENT_ARRAY_BUFFER, GL_STATIC_DRAW, sizeof(indices), indices);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, IBO);
 
+    build_framebuffer(WINDOW_WIDTH, WINDOW_HEIGHT);
+
 	// Define shader files to check for real-time recompiling
     const auto vs = "../shaders/tunnel_gem.vert";
     const auto fs = "../shaders/tunnel_gem.frag";
 
     auto dates = get_filetime(vs) + get_filetime(fs);
     auto newdates = dates;
+
+    int frame = 0;
 
     // rendering loop
     while (!glfwWindowShouldClose(window)) {
@@ -87,9 +144,13 @@ main(int, char* argv[]) {
             vertexShader = compileShader("tunnel_gem.vert", GL_VERTEX_SHADER);
             fragmentShader = compileShader("tunnel_gem.frag", GL_FRAGMENT_SHADER);
             shaderProgram = linkProgram(vertexShader, fragmentShader);
+            
             res = glGetUniformLocation(shaderProgram, "uRes");
             time = glGetUniformLocation(shaderProgram, "uTime");
-
+            tex_loc = glGetUniformLocation(shaderProgram, "tex");
+            seed = glGetUniformLocation(shaderProgram, "time_seed");
+            sample_amt = glGetUniformLocation(shaderProgram, "samples");
+            // TODO: Add sample amount
 
             glDeleteShader(fragmentShader);
             glDeleteShader(vertexShader);
@@ -101,21 +162,40 @@ main(int, char* argv[]) {
         // and fill screen with it (therefore clearing the window)
         glClear(GL_COLOR_BUFFER_BIT);
 
-        // render something...
-        glUseProgram(shaderProgram);
+        for (int i = 0; i<samples; i++) {
+            const auto p1 = std::chrono::system_clock::now();
 
-        glUniform1f(time, getTimeDelta());
-        glUniform2ui(res, WINDOW_WIDTH, WINDOW_HEIGHT);
-        glBindVertexArray(VAO);
-        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)0);
+            int time_seed = std::chrono::duration_cast<std::chrono::milliseconds>(p1.time_since_epoch()).count();
+            
+            // render something...
+            glUseProgram(shaderProgram);
 
-        // swap buffers == show rendered content
-        glfwSwapBuffers(window);
+            glEnable(GL_BLEND);
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);  
+
+            // std::cout << getTimeDelta(frame) << "\n";
+            glUniform1i(sample_amt, samples);
+            glUniform1f(time, getTimeDelta(frame));
+            glUniform1f(seed, rand());
+            glUniform2ui(res, WINDOW_WIDTH, WINDOW_HEIGHT);
+            glBindVertexArray(VAO);
+            glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)0);
+            // swap buffers with window == show rendered content
+            glfwSwapBuffers(window);
+        }
+
+        
         // process window events
         glfwPollEvents();
+
+        screendump(WINDOW_WIDTH, WINDOW_HEIGHT, frame);
+        // if (frame == 1) {
+        //     break;
+        // }
+        frame++;
     }
-
-
+    
+    glDeleteFramebuffers(1, &fbo);
     glfwTerminate();
 }
 
@@ -123,9 +203,29 @@ void resizeCallback(GLFWwindow*, int width, int height)
 {
     // set new width and height as viewport size
     glViewport(0, 0, width, height);
+    WINDOW_WIDTH = width;
+    WINDOW_HEIGHT = height;
 }
 
-float getTimeDelta() {
-    auto now = std::chrono::system_clock::now();
-    return static_cast<float>((std::chrono::duration_cast<std::chrono::milliseconds>(now - start_time).count() % 500000) / 1000.f);
+float getTimeDelta(int frame) {
+    // auto now = std::chrono::system_clock::now();
+    // return static_cast<float>((std::chrono::duration_cast<std::chrono::milliseconds>(now - start_time).count() % 500000) / 1000.f);
+    return (float)frame / FPS;
 }
+
+void screendump(int W, int H, int frame) {
+    char num[20];
+    std::sprintf(num, "frame_%04d.tga", frame);
+    FILE   *out = fopen(num,"wb");
+    char   *pixel_data = new char[3*W*H];
+    short  TGAhead[] = { 0, 2, 0, 0, 0, 0, W, H, 24 };
+
+    glReadBuffer(GL_FRONT);
+    glReadPixels(0, 0, W, H, GL_BGR, GL_UNSIGNED_BYTE, pixel_data);
+
+    fwrite(&TGAhead,sizeof(TGAhead),1,out);
+    fwrite(pixel_data, 3*W*H, 1, out);
+    fclose(out);
+
+    delete[] pixel_data; 
+} 
