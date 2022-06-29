@@ -6,8 +6,8 @@
 out vec4 frag_color;
 uniform uvec2 uRes;
 uniform float uTime;
-uniform sampler2D tex;
 uniform int time_seed;
+uniform int samples;
 
 struct Light {
     vec3 position;
@@ -333,7 +333,7 @@ Object sdTunnel(vec3 ray_pos, float size) {
 
     Object ground_distance = sdGround(ray_pos);
 
-    //wall_distance = opSmoothUnion(wall_distance, ground_distance,2 );
+    wall_distance = opSmoothUnion(wall_distance, ground_distance,2 );
 
     wall_distance = Object(sdFbm(ray_pos, wall_distance.distance), materials[2]);
 
@@ -579,7 +579,8 @@ vec2 normalizeScreenCoords(vec2 screenCoords) {
 
 void main()
 {
-    uint sample_seed = uint(uint(gl_FragCoord.x) * uint(time_seed * 123) + uint(gl_FragCoord.y) * uint(time_seed + 9277) + uint(uTime) * uint(26699)) | uint(1);
+    
+    uint sample_seed = uint(uint(gl_FragCoord.x) * uint(1973) + uint(gl_FragCoord.y) * uint(9277) + uint(uTime) * uint(26699) + time_seed) | uint(1);
 
     // Wood
     materials[0] = Material(vec3(.8, .5, .21), vec3(0.), 0.);
@@ -609,8 +610,7 @@ void main()
 
     vec3 camera_direction = getCameraRayDir(uv, camera_origin, camera_target);
 
-    //vec3 col = render(camera_origin, camera_direction, sample_seed);
-    vec4 accum_color = texture(tex, uv);
+    vec3 col = render(camera_origin, camera_direction, sample_seed);
 
-    frag_color = vec4(vec3(0.5), 1.0) + accum_color;
+    frag_color = vec4(col, 1. / float(samples));
 }
