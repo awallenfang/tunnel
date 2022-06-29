@@ -3,6 +3,8 @@
 #define EPSILON 0.0001
 #define PI 3.14159
 
+//#define PATHTRACING
+
 out vec4 frag_color;
 uniform uvec2 uRes;
 uniform float uTime;
@@ -533,6 +535,8 @@ vec3 gamma_correction(vec3 col) {
 }
 
 vec3 render(vec3 ray_origin, vec3 ray_direction, inout uint seed) {
+    #ifdef PATHTRACING
+
     int samples = 1;
     vec3 col = vec3(0.);
 
@@ -541,21 +545,25 @@ vec3 render(vec3 ray_origin, vec3 ray_direction, inout uint seed) {
     }
     col /= samples;
 
-    // vec3 col = vec3(.8, .5, .21);
+    #else
 
-    // float t = ray(ray_origin, ray_direction);
-    // if (t > 0.){
-    //     vec3 pos = ray_origin + t*ray_direction;
-    //     vec3 nor = calcNormal(pos);
-    //     Object object = map(pos);
+    vec3 col = vec3(.8, .5, .21);
 
-    //     col = object.material.color * max(dot(normalize(ray_direction), nor), 0.) * light_scan(pos);
-    // }
-    // col = mix(col , vec3(.0, .0, .0), smoothstep(0., .95, t*2/FAR_PLANE));
+    float t = ray(ray_origin, ray_direction);
+    if (t > 0.){
+        vec3 pos = ray_origin + t*ray_direction;
+        vec3 nor = calcNormal(pos);
+        Object object = map(pos);
 
-    // if (light_ray(ray_origin, ray_direction) > 0) {
-    //     col = vec3(1., 0, 0);
-    // }
+        col = object.material.color * max(dot(normalize(ray_direction), nor), 0.) * light_scan(pos);
+    }
+    col = mix(col, vec3(.0, .0, .0), smoothstep(0., .95, t*2/FAR_PLANE));
+
+    if (light_ray(ray_origin, ray_direction) > 0) {
+        col = vec3(1., 0, 0);
+    }
+
+    #endif
     return gamma_correction(col);
 }
 

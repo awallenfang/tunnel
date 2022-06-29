@@ -7,10 +7,10 @@
 #include <chrono>
 #include <string>
 
-int WINDOW_WIDTH = 200;
-int WINDOW_HEIGHT = 100;
+int WINDOW_WIDTH = 1280;
+int WINDOW_HEIGHT = 720;
 int FPS = 60;
-int samples = 64;
+int samples = 1;
 
 std::chrono::time_point<std::chrono::system_clock> start_time;
 
