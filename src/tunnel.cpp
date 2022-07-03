@@ -81,14 +81,12 @@ main(int, char* argv[]) {
     GLFWwindow* window = initOpenGL(WINDOW_WIDTH, WINDOW_HEIGHT, argv[0]);
     glfwSetFramebufferSizeCallback(window, resizeCallback);
 
-    std::string vertexShaderName = "tunnel_gem.vert";
+    std::string vertexShaderName = "tunnel.vert";
     std::string fragmentShaderName = "tunnel_gem.frag";
 
     if (const char *shaderOverride = std::getenv("SHADER_OVERWRITE")) {
-        vertexShaderName = std::string(shaderOverride) + ".vert";
         fragmentShaderName = std::string(shaderOverride) + ".frag";
-
-        std::cout << "Overwriting the shaders with " << shaderOverride << std::endl;
+        std::cout << "Overwriting the shaders with \"" << fragmentShaderName << "\"" << std::endl;
     }
 
     // load and compile shaders and link program
