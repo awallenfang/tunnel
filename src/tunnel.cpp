@@ -81,11 +81,19 @@ main(int, char* argv[]) {
     GLFWwindow* window = initOpenGL(WINDOW_WIDTH, WINDOW_HEIGHT, argv[0]);
     glfwSetFramebufferSizeCallback(window, resizeCallback);
 
-    // Initiate uniforms
+    std::string vertexShaderName = "tunnel_gem.vert";
+    std::string fragmentShaderName = "tunnel_gem.frag";
+
+    if (const char *shaderOverride = std::getenv("SHADER_OVERWRITE")) {
+        vertexShaderName = std::string(shaderOverride) + ".vert";
+        fragmentShaderName = std::string(shaderOverride) + ".frag";
+
+        std::cout << "Overwriting the shaders with " << shaderOverride << std::endl;
+    }
 
     // load and compile shaders and link program
-    unsigned int vertexShader = compileShader("tunnel_gem.vert", GL_VERTEX_SHADER);
-    unsigned int fragmentShader = compileShader("tunnel_gem.frag", GL_FRAGMENT_SHADER);
+    unsigned int vertexShader = compileShader(vertexShaderName.c_str(), GL_VERTEX_SHADER);
+    unsigned int fragmentShader = compileShader(fragmentShaderName.c_str(), GL_FRAGMENT_SHADER);
     unsigned int shaderProgram = linkProgram(vertexShader, fragmentShader);
     // after linking the program the shader objects are no longer needed
     glDeleteShader(fragmentShader);
@@ -127,8 +135,8 @@ main(int, char* argv[]) {
     build_framebuffer(WINDOW_WIDTH, WINDOW_HEIGHT);
 
 	// Define shader files to check for real-time recompiling
-    const auto vs = "../shaders/tunnel_gem.vert";
-    const auto fs = "../shaders/tunnel_gem.frag";
+    const auto vs = "../shaders/" + vertexShaderName;
+    const auto fs = "../shaders/" + fragmentShaderName;
 
     auto dates = get_filetime(vs) + get_filetime(fs);
     auto newdates = dates;
@@ -141,8 +149,8 @@ main(int, char* argv[]) {
         newdates = get_filetime(vs) + get_filetime(fs);
         if (newdates != dates) {
             std::cout << "Recompiling shaders" << std::endl;
-            vertexShader = compileShader("tunnel_gem.vert", GL_VERTEX_SHADER);
-            fragmentShader = compileShader("tunnel_gem.frag", GL_FRAGMENT_SHADER);
+            vertexShader = compileShader(vertexShaderName.c_str(), GL_VERTEX_SHADER);
+            fragmentShader = compileShader(fragmentShaderName.c_str(), GL_FRAGMENT_SHADER);
             shaderProgram = linkProgram(vertexShader, fragmentShader);
             
             res = glGetUniformLocation(shaderProgram, "uRes");
