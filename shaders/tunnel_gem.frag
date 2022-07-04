@@ -3,13 +3,14 @@
 #define EPSILON 0.0001
 #define PI 3.14159
 
-//#define PATHTRACING
+#define PATHTRACING
 
 out vec4 frag_color;
 uniform uvec2 uRes;
 uniform float uTime;
-uniform int time_seed;
+uniform int initial_seed;
 uniform int samples;
+uniform int sample_number;
 
 struct Light {
     vec3 position;
@@ -319,7 +320,7 @@ Object sdGreenGems(vec3 ray_pos, int radius) {
     Object min_object = Object(FAR_PLANE, materials[6]);
 
     for (int i = 0; i<30; i++) {
-        Object iter_object = sdBox(ray_pos - vec3(cos(i * 0.5 + 2) * radius, sin(i * 0.5 + 2) * radius, i * 2 + 1), vec3(.2), 0., 6);
+        Object iter_object = sdBox(ray_pos - vec3(cos(i * 0.5 + 2) * radius, 0., i*2), vec3(.2), 0., 6);
 
         if (iter_object.distance < min_object.distance) {
             min_object = iter_object;
@@ -361,9 +362,9 @@ Object map(vec3 pos){
 
     Object scene_distance = opSharpUnion(tunnel_distance, track_distance);
 
-    Object light = sdSphere(pos - vec3(0., 0., 3.) - path(uTime), .2, 3);
+    //Object light = sdSphere(pos - vec3(0., 0., 3.) - path(uTime), .2, 3);
 
-    return opSharpUnion(scene_distance, light);
+    return scene_distance;//opSharpUnion(scene_distance, light);
 }
 
 Object light_map(vec3 pos) {
@@ -588,7 +589,7 @@ vec2 normalizeScreenCoords(vec2 screenCoords) {
 void main()
 {
     
-    uint sample_seed = uint(uint(gl_FragCoord.x) * uint(1973) + uint(gl_FragCoord.y) * uint(9277) + uint(uTime) * uint(26699) + time_seed) | uint(1);
+    uint sample_seed = uint(uint(gl_FragCoord.x) * uint(1973 * sample_number) + uint(gl_FragCoord.y) * uint(9277 * sample_number) + uint(uTime) * uint(26699)) | uint(1);
 
     // Wood
     materials[0] = Material(vec3(.8, .5, .21), vec3(0.), 0.);
@@ -596,14 +597,14 @@ void main()
     materials[1] = Material(vec3(1.), vec3(0.), 0.);
     // Wall
     materials[2] = Material(vec3(0.271, 0.255, 0.247), vec3(0.), 0.);
-    // Light
+    // White Light
     materials[3] = Material(vec3(1.), vec3(1., 245./255., 182./255.), 0.);
     // Blue gem
     materials[4] = Material(vec3(0., 0., 1.), vec3(0., 0., 1.), 0.);
     // Red gem
-    materials[5] = Material(vec3(0., 0., 1.), vec3(1., 0., 0.), 0.);
+    materials[5] = Material(vec3(1., 0., 0.), vec3(1., 0., 0.), 0.);
     // Green gem
-    materials[6] = Material(vec3(0., 0., 1.), vec3(0., 1., 0.), 0.);
+    materials[6] = Material(vec3(0., 1., 0.), vec3(0., 1., 0.), 0.);
 
 
     // vec2 uv = (2*gl_FragCoord.xy - vec2(uRes.xy)) / float(uRes.y);
@@ -612,13 +613,16 @@ void main()
     vec3 camera_origin = camera_path(uTime);
     vec3 camera_target = vec3(0., 0., 3.) + path(uTime);
 
-    //TODO: Implement jitter for light Antialiasing
-
     light_sources[0] = Light(camera_target, vec3(1.), 0.);
 
     vec3 camera_direction = getCameraRayDir(uv, camera_origin, camera_target);
 
     vec3 col = render(camera_origin, camera_direction, sample_seed);
 
-    frag_color = vec4(col, 1. / float(samples));
+    float alpha = 1./5.;
+    if (col.x < 0.05 && col.y < 0.05 && col.z < 0.05) {
+        alpha = 0.;
+    }
+    frag_color = vec4(col, alpha);
+    // frag_color = vec4(vec3((initial_seed % 10) / 10), 1.);
 }
