@@ -6,6 +6,7 @@
 #include <iostream>
 #include <chrono>
 #include <string>
+#include <filesystem>
 
 int WINDOW_WIDTH = 1280;
 int WINDOW_HEIGHT = 720;
@@ -36,7 +37,7 @@ void
 resizeCallback(GLFWwindow* window, int width, int height);
 
 void 
-screendump(int W, int H, int frame);
+screenDump(int W, int H, int frame);
 
 void write_frame(int W, int H, int frame);
 
@@ -87,6 +88,11 @@ main(int, char* argv[]) {
     if (const char *shaderOverride = std::getenv("SHADER_OVERWRITE")) {
         fragmentShaderName = std::string(shaderOverride) + ".frag";
         std::cout << "Overwriting the shaders with \"" << fragmentShaderName << "\"" << std::endl;
+    }
+
+    const char *shouldScreenDump = std::getenv("SCREEN_DUMP");
+    if (shouldScreenDump) {
+        std::filesystem::create_directories("screen_dump/");
     }
 
     // load and compile shaders and link program
@@ -194,7 +200,9 @@ main(int, char* argv[]) {
         // process window events
         glfwPollEvents();
 
-        screendump(WINDOW_WIDTH, WINDOW_HEIGHT, frame);
+        if (shouldScreenDump){
+            screenDump(WINDOW_WIDTH, WINDOW_HEIGHT, frame);
+        }
         // if (frame == 1) {
         //     break;
         // }
@@ -219,19 +227,21 @@ float getTimeDelta(int frame) {
     return (float)frame / FPS;
 }
 
-void screendump(int W, int H, int frame) {
-    char num[20];
-    std::sprintf(num, "frame_%04d.tga", frame);
-    FILE   *out = fopen(num,"wb");
-    char   *pixel_data = new char[3*W*H];
-    short  TGAhead[] = { 0, 2, 0, 0, 0, 0, W, H, 24 };
+void screenDump(int W, int H, int frame) {
+    char filename[33];
+
+    std::sprintf(filename, "screen_dump/frame_%04d.tga", frame);
+    FILE *outputFile = fopen(filename, "wb");
+
+    char *pixel_data = new char[3 * W * H];
+    short TGAhead[] = {0, 2, 0, 0, 0, 0, (short) W, (short) H, 24};
 
     glReadBuffer(GL_FRONT);
     glReadPixels(0, 0, W, H, GL_BGR, GL_UNSIGNED_BYTE, pixel_data);
 
-    fwrite(&TGAhead,sizeof(TGAhead),1,out);
-    fwrite(pixel_data, 3*W*H, 1, out);
-    fclose(out);
+    fwrite(&TGAhead, sizeof(TGAhead), 1, outputFile);
+    fwrite(pixel_data, 3 * W * H, 1, outputFile);
+    fclose(outputFile);
 
-    delete[] pixel_data; 
+    delete[] pixel_data;
 } 
