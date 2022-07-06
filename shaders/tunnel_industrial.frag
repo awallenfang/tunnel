@@ -77,12 +77,7 @@ float map(vec3 p) {
     q.xy *= rot(ia + sign(mod(q.z + 0.7, 2.8) - 1.4) * PI/6);
     q2.xy *= rot(ia2);
 
-    // The X-coordinate is now the radial coordinate, which radiates from the center
-    // to infinity. We want to break it into cells that are 2 units wide, but centered
-    // in the middle. The result is that the panels will start at radius one.
-    //q.x = mod(q.x, 2.0) - 2.;
-    // Plain old linear Z repetion. We want the panels and bolts to be repeated in the
-    // Z-direction (down the tunnel) every half unit.
+    // Repeat panels and
     q.z = mod(q.z, 1.4) - 0.7;
 
     // Moving the bolts out to a distance of 2.1.
@@ -99,7 +94,7 @@ float map(vec3 p) {
 
     // Lines and gaps on the tunnel to give the illusion of metal plating.
 
-    float tunDetail = max(min(q.y - .06, q.z - .06), - min(q.y - .01, q.z - .01));
+    float tunDetail = min(max(q.z - .06, q.z - .01), q.y - 0.01);
 
     // Adding the tunnel details (with a circular center taken out) to the tunnel.
     tun = min(tun, max(tunDetail, tun-depth));
