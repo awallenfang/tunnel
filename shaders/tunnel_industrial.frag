@@ -52,6 +52,14 @@ float sdInfBox(vec2 p, vec2 b) {
     return min(max(d.x, d.y), 0.0) + length(max(d, 0.0));
 }
 
+vec3 tunnelPath(float z) {
+    return vec3(
+    sin(z * PI / 32 + 0.5 * PI) * 2,
+    cos(z * PI / 32) * sin(z * PI / 32 + 0.5 * PI),
+    z
+    );
+}
+
 /**
  * Signed distance function describing the scene.
  *
@@ -61,6 +69,8 @@ float sdInfBox(vec2 p, vec2 b) {
  */
 float map(vec3 p) {
     const float depth = 0.1;
+
+    p.xy -= tunnelPath(p.z).xy;
 
     // tunnel
     float tun = (1.0 + depth) - length(p.xy);
@@ -190,42 +200,6 @@ vec3 phongContribForLight(vec3 k_d, vec3 k_s, float alpha, vec3 p, vec3 eye, vec
 }
 
 /**
- * Lighting via Phong illumination.
- *
- * The vec3 returned is the RGB color of that point after lighting is applied.
- * k_a: Ambient color
- * k_d: Diffuse color
- * k_s: Specular color
- * alpha: Shininess coefficient
- * p: position of point being lit
- * eye: the position of the camera
- *
- * See https://en.wikipedia.org/wiki/Phong_reflection_model#Description
- */
-vec3 phongIllumination(vec3 k_a, vec3 k_d, vec3 k_s, float alpha, vec3 p, vec3 eye) {
-    const vec3 ambientLight = 0.5 * vec3(1.0, 1.0, 1.0);
-    vec3 color = ambientLight * k_a;
-
-    vec3 light1Pos = vec3(
-    0.5 * sin(uTime),
-    0.0,
-    0.5 * cos(uTime));
-    vec3 light1Intensity = vec3(0.4, 0.4, 0.4);
-
-    color += phongContribForLight(k_d, k_s, alpha, p, eye, light1Pos, light1Intensity);
-
-    vec3 light2Pos = vec3(
-    2.0 * sin(0.37 * uTime),
-    2.0 * cos(0.37 * uTime),
-    2.0
-    );
-    vec3 light2Intensity = vec3(0.4, 0.4, 0.4);
-
-    color += phongContribForLight(k_d, k_s, alpha, p, eye, light2Pos, light2Intensity);
-    return color;
-}
-
-/**
  * Return a transform matrix that will transform a ray from view space
  * to world coordinates, given the eye point, the camera target, and an up vector.
  *
@@ -247,10 +221,12 @@ mat4 viewMatrix(vec3 eye, vec3 center, vec3 up) {
 
 void main()
 {
-    vec3 ro = vec3(0, 0.0, 1.0);
+    const float speed = 8.0;
+
+    vec3 ro = tunnelPath(uTime * speed);
     vec3 viewDir = rayDirection(45.0, uRes.xy, gl_FragCoord.xy);
 
-    mat4 viewToWorld = viewMatrix(ro, vec3(0.0, 0.0, 0.0), vec3(.8, 1.0, 0.0));
+    mat4 viewToWorld = viewMatrix(ro, tunnelPath(uTime * speed + 3.0), vec3(.8, 1.0, 0.0));
     vec3 rd = (viewToWorld * vec4(viewDir, 0.0)).xyz;
 
     float dist = raymarch(ro, rd);
@@ -269,7 +245,13 @@ void main()
     vec3 K_s = vec3(1.0, 1.0, 1.0);
     float shininess = 10.0;
 
-    vec3 color = phongIllumination(K_a, K_d, K_s, shininess, p, ro);
+    const vec3 ambientLight = 0.5 * vec3(1.0, 1.0, 1.0);
+    vec3 color = ambientLight * K_a;
+
+    vec3 lightPos = tunnelPath(uTime * speed);
+    vec3 lightIntensity = vec3(0.4, 0.4, 0.4);
+
+    color += phongContribForLight(K_d, K_s, shininess, p, ro, lightPos, lightIntensity);
 
     frag_color = vec4(color, 1.0);
 }
