@@ -2,6 +2,7 @@
 
 #define FAR_PLANE 100
 #define MAX_RAYMARCHING_ITERATIONS 255
+#define MAX_SOFT_SHADOW_ITERATIONS 32
 #define EPSILON 0.0001
 
 #define PI 3.14159265359
@@ -177,8 +178,7 @@ vec3 estimateNormal(vec3 p) {
  *
  * See https://en.wikipedia.org/wiki/Phong_reflection_model#Description
  */
-vec3 phongContribForLight(vec3 k_d, vec3 k_s, float alpha, vec3 p, vec3 eye, vec3 lightPos, vec3 lightIntensity) {
-    vec3 N = estimateNormal(p);
+vec3 phongContribForLight(vec3 N, vec3 k_d, vec3 k_s, float alpha, vec3 p, vec3 eye, vec3 lightPos, vec3 lightIntensity) {
     vec3 L = normalize(lightPos - p);
     vec3 V = normalize(eye - p);
     vec3 R = normalize(reflect(-L, N));
@@ -219,9 +219,40 @@ mat4 viewMatrix(vec3 eye, vec3 center, vec3 up) {
     );
 }
 
-void main()
+float calcSoftShadow(vec3 ro, vec3 lightPos) {
+    const float k = 10.0;
+    float maxDistance = max(length(lightPos - ro), 0.01);
+
+    float shade = 1.0;
+    float t = 0.05;
+
+    vec3 rd = normalize(lightPos - ro);
+    for (int i = 0; i < MAX_SOFT_SHADOW_ITERATIONS; i ++) {
+        float h = map(ro + rd * t);
+        shade = min(shade, k * h / t);
+        t += h;
+
+        if (shade < 0.01 || t > maxDistance) break;
+    }
+
+    return clamp(shade + 0.2, 0.0, 1.0);
+}
+
+float calcAmbientOcclusion(vec3 p, vec3 n)
 {
-    const float speed = 8.0;
+    float occ = 0.0;
+    float sca = 1.0;
+    for (float i=0; i<5; i++) {
+        float h = 0.001 + 0.15 * i / 4.0;
+        float d = map(p + h*n);
+        occ += (h - d) * sca;
+        sca *= 0.95;
+    }
+    return clamp(1.0 - 1.5*occ, 0.0, 1.0);
+}
+
+void main() {
+    const float speed = 1.0;
 
     vec3 ro = tunnelPath(uTime * speed);
     vec3 viewDir = rayDirection(45.0, uRes.xy, gl_FragCoord.xy);
@@ -248,10 +279,20 @@ void main()
     const vec3 ambientLight = 0.5 * vec3(1.0, 1.0, 1.0);
     vec3 color = ambientLight * K_a;
 
-    vec3 lightPos = tunnelPath(uTime * speed);
+    vec3 lightPos = tunnelPath(uTime * speed) - vec3(0, 0, 1.0);
     vec3 lightIntensity = vec3(0.4, 0.4, 0.4);
 
-    color += phongContribForLight(K_d, K_s, shininess, p, ro, lightPos, lightIntensity);
+    vec3 normal = estimateNormal(p);
+    float shadow = calcSoftShadow(p, lightPos);
+    float ao = calcAmbientOcclusion(p, normal);
+
+    lightPos -= p;
+    float lightDistance = max(length(lightPos), EPSILON);
+    lightPos /= lightDistance;
+
+    color += phongContribForLight(normal, K_d, K_s, shininess, p, ro, lightPos, lightIntensity);
+    color *= shadow;
+    color *= ao;
 
     frag_color = vec4(color, 1.0);
 }
