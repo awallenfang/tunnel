@@ -2,15 +2,25 @@
 #define FAR_PLANE 50.
 #define EPSILON 0.0001
 #define PI 3.14159
+#define MAX_LIGHTS 250
 
 #define PATHTRACING
 
 out vec4 frag_color;
+
 uniform uvec2 uRes;
 uniform float uTime;
-uniform int initial_seed;
+uniform int init_seed;
 uniform int samples;
 uniform int sample_number;
+
+uniform vec3 light_pos[MAX_LIGHTS];
+uniform int light_col[MAX_LIGHTS];
+
+uniform int grid_x;
+uniform int grid_x_pos;
+uniform int grid_y;
+uniform int grid_y_pos;
 
 struct Light {
     vec3 position;
@@ -107,7 +117,7 @@ float smin( float a, float b, float k )
 float sdFbm( vec3 p, float d )
 {
    float s = 1.0;
-   for( int i=0; i<4; i++ )
+   for( int i=0; i<3; i++ )
    {
        // evaluate new octave
        float n = s*sdBase(p);
@@ -136,7 +146,7 @@ vec3 path(float t) {
 }
 
 vec3 camera_path(float t) {
-    return vec3(cos(t), 3. + 0.8*sin(t), 2*t);
+    return vec3(0., 0., 2*t);
 }
 
 
@@ -241,9 +251,9 @@ Object sdPlaneY(vec3 pos, float offset, int material_id) {
 
 // Distance function of the rails with details
 Object sdTrack(vec3 ray_pos) {
-    Object top_box = sdBox(ray_pos - vec3(0.,0.18,0.), vec3(0.15,0.01,10.), 0., 1);
-    Object middle_box = sdBox(ray_pos - vec3(0., 0.08, 0.), vec3(0.08,0.08,10.), 0., 1);
-    Object bottom_box = sdBox(ray_pos - vec3(0.,0.0,0.), vec3(0.15,0.01,10.), 0., 1);
+    Object top_box = sdBox(ray_pos - vec3(0.,0.18,0.), vec3(0.15,0.01,10000.), 0., 1);
+    Object middle_box = sdBox(ray_pos - vec3(0., 0.08, 0.), vec3(0.08,0.08,10000.), 0., 1);
+    Object bottom_box = sdBox(ray_pos - vec3(0.,0.0,0.), vec3(0.15,0.01,10000.), 0., 1);
     return opSharpUnion(opSharpUnion(top_box, middle_box), bottom_box);
 }
 
@@ -257,6 +267,12 @@ Object sdWoodBeams(vec3 ray_pos, float size) {
 
 // Distance function of the rail track, where distance is the distance between boards
 Object sdCartTrack(vec3 ray_pos, int distance) {
+    // Draw the rails with details
+    Object left_track = sdTrack(ray_pos - vec3(-1., 0.15, 0.));
+    Object right_track = sdTrack(ray_pos - vec3(1., 0.15, 0.));
+
+    Object track_distance = opSharpUnion(left_track, right_track);
+
     // Draw the wooden boards
     ray_pos = opRep(ray_pos, vec3(0., 0., distance));
 
@@ -271,13 +287,6 @@ Object sdCartTrack(vec3 ray_pos, int distance) {
     // Combine connector with boards
     board_distance = opSharpUnion(board_distance, connector_distance);
 
-    // Draw the rails with details
-    Object left_track = sdTrack(ray_pos - vec3(-1., 0.15, 0.));
-    Object right_track = sdTrack(ray_pos - vec3(1., 0.15, 0.));
-
-    Object track_distance = opSharpUnion(left_track, right_track);
-
-
     // Combine the rails and the board
     return opSharpUnion(board_distance, track_distance);
 }
@@ -287,48 +296,22 @@ Object sdCartTrack(vec3 ray_pos, int distance) {
 // }
 
 Object sdGround(vec3 ray_pos) {
-    return sdPlaneY(ray_pos, /*0.5*noise(ray_pos)*/ 0.2, 2);
+    return sdPlaneY(ray_pos,  0.2, 2);
 }
 
-Object sdBlueGems(vec3 ray_pos, int radius) {
+Object sdGems(vec3 ray_pos) {
     Object min_object = Object(FAR_PLANE, materials[4]);
 
-    for (int i = 0; i<30; i++) {
-        Object iter_object = sdBox(ray_pos - vec3(cos(i * 0.4) * radius, sin(i * 0.4) * radius, i * 2), vec3(.2), 0., 4);
+    for (int i = 0; i < MAX_LIGHTS; i++) {
+        Object iter_object = sdSphere(ray_pos - light_pos[i], 0.3, light_col[i]);
 
         if (iter_object.distance < min_object.distance) {
             min_object = iter_object;
         }
     }
+
     return min_object;
 }
-
-Object sdRedGems(vec3 ray_pos, int radius) {
-    Object min_object = Object(FAR_PLANE, materials[5]);
-
-    for (int i = 0; i<30; i++) {
-        Object iter_object = sdBox(ray_pos - vec3(cos(i * 0.6 + 1) * radius, sin(i * 0.6 + 1) * radius, i * 2 + 1), vec3(.2), 0., 5);
-
-        if (iter_object.distance < min_object.distance) {
-            min_object = iter_object;
-        }
-    }
-    return min_object;
-}
-
-Object sdGreenGems(vec3 ray_pos, int radius) {
-    Object min_object = Object(FAR_PLANE, materials[6]);
-
-    for (int i = 0; i<30; i++) {
-        Object iter_object = sdBox(ray_pos - vec3(cos(i * 0.5 + 2) * radius, 0., i*2), vec3(.2), 0., 6);
-
-        if (iter_object.distance < min_object.distance) {
-            min_object = iter_object;
-        }
-    }
-    return min_object;
-}
-
 
 Object sdTunnel(vec3 ray_pos, float size) {
     Object wall_distance = Object(size - length(ray_pos.xy*vec2(1, 1)), materials[2]);
@@ -343,9 +326,7 @@ Object sdTunnel(vec3 ray_pos, float size) {
     // Draw the wooden beams
     Object beam_distance = sdWoodBeams(opRep(ray_pos, vec3(0., 0., 3)), size-0.7);
 
-    Object gems_distance = sdBlueGems(ray_pos, 5);
-    gems_distance = opSharpUnion(gems_distance, sdRedGems(ray_pos, 5));
-    gems_distance = opSharpUnion(gems_distance, sdGreenGems(ray_pos, 5));
+    Object gems_distance = sdGems(ray_pos);
 
     return opSharpUnion(wall_distance, opSharpUnion(beam_distance, gems_distance));
     //return opSmoothUnion(beam_distance, wall_distance, 0.05);
@@ -362,9 +343,13 @@ Object map(vec3 pos){
 
     Object scene_distance = opSharpUnion(tunnel_distance, track_distance);
 
-    //Object light = sdSphere(pos - vec3(0., 0., 3.) - path(uTime), .2, 3);
+    Object meta_ball = opSmoothUnion(sdSphere(pos - vec3(2.,2.,2.), 0.5, 1), sdSphere(pos - vec3(1.,2.,2.), 0.5, 1), 0.5);
 
-    return scene_distance;//opSharpUnion(scene_distance, light);
+    return opSharpUnion(scene_distance, meta_ball);
+
+    Object light = sdSphere(pos - vec3(0., 0., 3.) - path(uTime), .2, 3);
+
+    return opSharpUnion(scene_distance, light);
 }
 
 Object light_map(vec3 pos) {
@@ -388,7 +373,7 @@ vec3 calcNormal(vec3 p){
 float ray(vec3 ray_origin, vec3 ray_direction){
     float t = 0.;
 
-    uint steps = 100;
+    uint steps = 200;
 
     for (int i=0; i<steps; i++) {
         vec3 pos = ray_origin + t*ray_direction;
@@ -492,6 +477,48 @@ vec3 RandomUnitVector(inout uint seed)
     return vec3(x, y, z);
 }
 
+vec3 sample_lights(vec3 pos, float distance_var) {
+    // Check n closest lights
+    // If hit, return emission (with distance reduction?)
+    int closest_lights_index[MAX_LIGHTS];
+    int found_lights = 0;
+
+    // Find all lights within threshold
+    for (int i = 0; i < MAX_LIGHTS; i++) {
+        if (abs(distance(light_pos[i], pos)) <= distance_var) {
+            closest_lights_index[found_lights] = i;
+            found_lights++;
+        }
+    }
+
+    vec3 combined_radiance = vec3(0.);
+
+    // Iterate over all found lights and combine their output
+    for (int i = 0; i < found_lights; i++) {
+        int selected_light = closest_lights_index[i];
+
+        vec3 selected_light_pos = light_pos[selected_light];
+
+        float dist = distance(pos, selected_light_pos);
+
+        vec3 direction = normalize(selected_light_pos - pos);
+
+        float t = ray(pos + EPSILON * direction, direction);
+        // Hit something on the way
+        if (t + 5*t*EPSILON < dist - 0.3) {
+            return vec3(0.);
+        }
+
+        Object obj = map(pos + t*direction);
+        combined_radiance += obj.material.emission / (dist + 1.);
+    }
+
+    if (found_lights > 0) {
+        combined_radiance /= float(found_lights);
+    }
+
+    return combined_radiance;
+}
 
 // Based on: https://github.com/quaiquai/ProjectLink-GLSL-Path-Tracer/blob/master/shaders/pathtracing_main.fs
 vec3 trace_path(in vec3 ray_origin, in vec3 ray_direction, int max_depth, inout uint seed) {
@@ -500,7 +527,7 @@ vec3 trace_path(in vec3 ray_origin, in vec3 ray_direction, int max_depth, inout 
     vec3 throughput = vec3(1.);
 
     vec3 origin = ray_origin;
-    vec3 direction = ray_direction;
+    vec3 direction = normalize(ray_direction);
 
     for (int depth = 0; depth <= max_depth; depth++) {
         float t = ray(origin, direction);
@@ -511,14 +538,20 @@ vec3 trace_path(in vec3 ray_origin, in vec3 ray_direction, int max_depth, inout 
         // Recalculate the positional values
         origin = hit_pos + EPSILON * normal;
         direction = normalize(reflect(direction, normal) + RandomUnitVector(seed));
+        // direction = normalize(direction + RandomUnitVector(seed));
         
-
+        throughput *= object.material.color;
         // TODO: Percent specular
 
-        radiance += object.material.emission * throughput;
+        radiance += (object.material.emission / (t + 1.)) * throughput;
 
-        throughput *= object.material.color;
+        // TODO: Sample lights
 
+        //radiance += sample_lights(origin, 5) * throughput;
+
+        // TODO: BRDF
+
+        
         // Russian Roulette
         float p = max(throughput.x, max(throughput.y, throughput.z));
         if (RandomFloat01(seed) > p) break;
@@ -526,7 +559,6 @@ vec3 trace_path(in vec3 ray_origin, in vec3 ray_direction, int max_depth, inout 
         throughput *= 1. / p;
 
     }
-    
 
     return radiance;
 }
@@ -538,13 +570,7 @@ vec3 gamma_correction(vec3 col) {
 vec3 render(vec3 ray_origin, vec3 ray_direction, inout uint seed) {
     #ifdef PATHTRACING
 
-    int samples = 1;
-    vec3 col = vec3(0.);
-
-    for (int i = 0; i < samples; i++) {
-        col += trace_path(ray_origin, ray_direction, 3, seed);
-    }
-    col /= samples;
+    vec3 col = trace_path(ray_origin, ray_direction, 3, seed);
 
     #else
 
@@ -589,7 +615,7 @@ vec2 normalizeScreenCoords(vec2 screenCoords) {
 void main()
 {
     
-    uint sample_seed = uint(uint(gl_FragCoord.x) * uint(1973 * sample_number) + uint(gl_FragCoord.y) * uint(9277 * sample_number) + uint(uTime) * uint(26699)) | uint(1);
+    uint sample_seed = uint(uint(gl_FragCoord.x) * uint(1973 * init_seed) + uint(gl_FragCoord.y) * uint(9277 * init_seed)) | uint(1);
 
     // Wood
     materials[0] = Material(vec3(.8, .5, .21), vec3(0.), 0.);
@@ -600,29 +626,44 @@ void main()
     // White Light
     materials[3] = Material(vec3(1.), vec3(1., 245./255., 182./255.), 0.);
     // Blue gem
-    materials[4] = Material(vec3(0., 0., 1.), vec3(0., 0., 1.), 0.);
-    // Red gem
-    materials[5] = Material(vec3(1., 0., 0.), vec3(1., 0., 0.), 0.);
-    // Green gem
-    materials[6] = Material(vec3(0., 1., 0.), vec3(0., 1., 0.), 0.);
+    materials[4] = Material(vec3(91./255., 150./255., 250./255.), vec3(91./255., 150./255., 250./255.), 0.);
+    // Pink gem
+    materials[5] = Material(vec3(255./255., 149./255., 184./255.), vec3(255./255., 149./255., 184./255.), 0.);
+    // Pink gem
+    materials[6] = Material(vec3(255./255., 109./255., 184./255.), vec3(255./255., 109./255., 184./255.), 0.);
 
 
     // vec2 uv = (2*gl_FragCoord.xy - vec2(uRes.xy)) / float(uRes.y);
     vec2 uv = normalizeScreenCoords(gl_FragCoord.xy);
+    // Check if current grid cell is the one to be rendered
+    // vec2 grid_uv_pos = vec2(grid_x_pos, grid_y_pos);
+    // vec2 grid_res = vec2(grid_x, grid_y);
+    // vec2 grid_uv = (2*grid_uv_pos - grid_res) / float(grid_res.y);
+    // float grid_u_left = grid_uv.x;
+    // float grid_u_right = grid_uv.y + 1./grid_res.x;
+    // float grid_v_top = grid_uv.x;
+    // float grid_v_bottom = grid_uv.y + 1./grid_res.y;
 
-    vec3 camera_origin = camera_path(uTime);
+    // if (uv.x < grid_u_left || uv.x > grid_u_right || uv.y < grid_v_top || uv.y > grid_v_bottom) {
+    //     frag_color = vec4(0.);
+    //     return;
+    // } else {
+    //     frag_color = vec4(grid_x / 4., grid_y / 4., 0., 1.);
+    //     return;
+    // }
+
+    vec3 camera_origin = path(uTime);
     vec3 camera_target = vec3(0., 0., 3.) + path(uTime);
-
-    light_sources[0] = Light(camera_target, vec3(1.), 0.);
 
     vec3 camera_direction = getCameraRayDir(uv, camera_origin, camera_target);
 
     vec3 col = render(camera_origin, camera_direction, sample_seed);
 
-    float alpha = 1./5.;
-    if (col.x < 0.05 && col.y < 0.05 && col.z < 0.05) {
+    float alpha = (4.*3.14159)/samples;
+
+    if (col.x < 0.01 && col.y < 0.01 && col.z < 0.01) {
         alpha = 0.;
     }
+
     frag_color = vec4(col, alpha);
-    // frag_color = vec4(vec3((initial_seed % 10) / 10), 1.);
 }
