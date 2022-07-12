@@ -85,7 +85,7 @@ main(int, char* argv[]) {
 
     // load and compile shaders and link program
     unsigned int vertexShader = compileShader("tunnel_gem.vert", GL_VERTEX_SHADER);
-    unsigned int fragmentShader = compileShader("tunnel_gem.frag", GL_FRAGMENT_SHADER);
+    unsigned int fragmentShader = compileShader("voxel_trace.frag", GL_FRAGMENT_SHADER);
     unsigned int shaderProgram = linkProgram(vertexShader, fragmentShader);
     // after linking the program the shader objects are no longer needed
     glDeleteShader(fragmentShader);
@@ -128,7 +128,7 @@ main(int, char* argv[]) {
 
 	// Define shader files to check for real-time recompiling
     const auto vs = "../shaders/tunnel_gem.vert";
-    const auto fs = "../shaders/tunnel_gem.frag";
+    const auto fs = "../shaders/voxel_trace.frag";
 
     auto dates = get_filetime(vs) + get_filetime(fs);
     auto newdates = dates;
@@ -142,7 +142,7 @@ main(int, char* argv[]) {
         if (newdates != dates) {
             std::cout << "Recompiling shaders" << std::endl;
             vertexShader = compileShader("tunnel_gem.vert", GL_VERTEX_SHADER);
-            fragmentShader = compileShader("tunnel_gem.frag", GL_FRAGMENT_SHADER);
+            fragmentShader = compileShader("voxel_trace.frag", GL_FRAGMENT_SHADER);
             shaderProgram = linkProgram(vertexShader, fragmentShader);
             
             res = glGetUniformLocation(shaderProgram, "uRes");
