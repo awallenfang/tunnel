@@ -105,9 +105,6 @@ float sdCutHollowSphere( vec3 p, float r, float h, float t )
 
 Object sdBoat(vec3 p, vec3 position) {
    p -= position;
-   //p = p * rot;
-   
-
    float h = 0.5;
    float sphereDist = sdCutHollowSphere(p, 2.,h,0.2);
    return Object(sphereDist, 4);
@@ -273,6 +270,7 @@ vec3 material(int mat) {
 }
 
 mat3 rot;
+mat3 rotZ;
 
 #define VOXEL
 vec3 render(vec3 ro, vec3 rd, float voxelsize) {
@@ -334,10 +332,16 @@ void main()
     float angle = acos(dot(normalize(vec2(0,-1)), normalize(lookdir.xz))) / 5.;
     if(lookdir.x < 0) angle = -angle;
     rot = mat3(
-    cos(angle), 0, -sin(angle),
-    0, 1, 0,
-    sin(angle), 0, cos(angle)
-);
+        cos(angle), 0, -sin(angle),
+        0, 1, 0,
+        sin(angle), 0, cos(angle)
+    );
+
+    rot *= mat3(
+        1, 0, 0,
+        0, cos(angle), -sin(angle),
+        0, sin(angle), cos(angle)
+    );
 
 
 #ifdef VOXEL
