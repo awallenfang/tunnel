@@ -117,6 +117,16 @@ Object map(vec3 pos) {
     float size = 5;
     vec2 p = -path(pos.z).xy + pos.xy*vec2(1, 1);
     Object wall_distance = Object(size - length(p) + noise(pos),1);
+
+    float rand = fract(noise(pos));
+    if(rand < 0.3) {
+        wall_distance.material = 1;
+    }else if(rand < 0.6) {
+        wall_distance.material = 5;
+    }else {
+        wall_distance.material = 6;
+    }
+
     Object planeDist = sdPlaneWave(pos, vec4(0,1., 0, 3.5), 2);
 
 #ifdef GITTERBOAT
@@ -266,6 +276,12 @@ vec3 material(int mat) {
     if(mat == 4) {
         return vec3(153/255., 71/255., 16/255.);
     }
+    if(mat == 5) {
+        return vec3(0.6, 0.6, 0.6);
+    }
+    if(mat == 6) {
+        return vec3(0.4, 0.4, 0.4);
+    }
     return vec3(.0, .0, .0);
 }
 
@@ -278,14 +294,14 @@ vec3 render(vec3 ro, vec3 rd, float voxelsize) {
     vec3 nor;
     
 #ifdef VOXEL
-    Object t = voxel_trace(ro, rd, hit, nor, Config(voxelsize,0));
+    Object t = voxel_trace(ro, rotZ * rd, hit, nor, Config(voxelsize,0));
     nor = -nor;
 
 #ifndef GITTERBOAT
     bool hit2;
     vec3 nor2;
 
-    Object boat = voxel_trace(vec3(0.), rot * rd, hit2, nor2, Config(voxelsize, 1));
+    Object boat = voxel_trace(vec3(0.), rot *  rd, hit2, nor2, Config(voxelsize, 1));
     if(hit2) {
         hit = hit2;
         nor = -nor2;
@@ -337,10 +353,12 @@ void main()
         sin(angle), 0, cos(angle)
     );
 
-    rot *= mat3(
+    float angleZ = sin(uTime * 4.) * 0.1;
+
+    rotZ = mat3(
         1, 0, 0,
-        0, cos(angle), -sin(angle),
-        0, sin(angle), cos(angle)
+        0, cos(angleZ), -sin(angleZ),
+        0, sin(angleZ), cos(angleZ)
     );
 
 
