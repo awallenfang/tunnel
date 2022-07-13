@@ -83,7 +83,7 @@ main(int, char* argv[]) {
     glfwSetFramebufferSizeCallback(window, resizeCallback);
 
     std::string vertexShaderName = "tunnel.vert";
-    std::string fragmentShaderName = "tunnel_gem.frag";
+    std::string fragmentShaderName = "voxel_trace.frag";
 
     if (const char *shaderOverride = std::getenv("SHADER_OVERWRITE")) {
         fragmentShaderName = std::string(shaderOverride) + ".frag";
@@ -92,7 +92,7 @@ main(int, char* argv[]) {
 
     const char *shouldScreenDump = std::getenv("SCREEN_DUMP");
     if (shouldScreenDump) {
-        std::filesystem::create_directories("screen_dump/");
+        //std::filesystem::create_directories("screen_dump/");
     }
 
     // load and compile shaders and link program
@@ -216,7 +216,7 @@ main(int, char* argv[]) {
         glfwPollEvents();
 
         if (shouldScreenDump){
-            screenDump(WINDOW_WIDTH, WINDOW_HEIGHT, frame);
+            //screenDump(WINDOW_WIDTH, WINDOW_HEIGHT, frame);
         }
         // if (frame == 1) {
         //     break;
