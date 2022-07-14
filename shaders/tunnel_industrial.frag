@@ -31,6 +31,18 @@ const Material BOLT = Material(vec3(.75, .75, .75), vec3(.8, .75, .6), vec3(1.0,
 
 const int FAR_PLANE_ID = 2;
 
+float n3D(vec3 p){
+
+    const vec3 s = vec3(7, 157, 113);
+    vec3 ip = floor(p); p -= ip;
+    vec4 h = vec4(0., s.yz, s.y + s.z) + dot(ip, s);
+    p = p*p*(3. - 2.*p); //p *= p*p*(p*(p * 6. - 15.) + 10.);
+    h = mix(fract(sin(h)*43758.5453), fract(sin(h + s.x)*43758.5453), p.x);
+    h.xy = mix(h.xz, h.yw, p.y);
+    return mix(h.x, h.y, p.z); // Range: [0, 1].
+}
+
+
 Object objUnion(Object object1, Object object2) {
     if (object1.distance < object2.distance) {
         return object1;
@@ -102,7 +114,6 @@ Object map(vec3 p) {
 
     // Adding the tunnel details (with a circular center taken out) to the tunnel.
     tun = min(tun, max(tunDetail, tun-depth));
-
     Object tunObj = Object(tun, WALL_ID);
 
     Object result = objUnion(tunObj, tunObj);
@@ -268,6 +279,24 @@ Material getMaterial(int objectId) {
     return Material(vec3(0), vec3(0), vec3(0), 0.0);
 }
 
+float calculateBumpMap(vec3 p) {
+    p.xy -= tunnelPath(p.z).xy;
+    float res = n3D(p * 13.0) * 0.01;
+    return res;
+}
+
+vec3 applyBumpMap(vec3 p, vec3 normal, float bumpFactor) {
+    const vec2 e = vec2(EPSILON, 0);
+
+    float bumpMapValue = calculateBumpMap(p);
+    vec3 gradient = vec3(calculateBumpMap(p - e.xyy), calculateBumpMap(p - e.yxy), calculateBumpMap(p - e.yyx)) - bumpMapValue;
+    gradient /= e.x;
+
+    gradient -= normal * dot(normal, gradient);
+
+    return normalize(normal + gradient);
+}
+
 void main() {
     const float speed = 1.0;
 
@@ -290,13 +319,18 @@ void main() {
 
     Material material = getMaterial(hitObject.objectId);
 
-    const vec3 ambientLight = 0.5 * vec3(1.0, 1.0, 1.0);
+    const vec3 ambientLight = 0.8 * vec3(1.0, 1.0, 1.0);
     vec3 color = ambientLight * material.K_a;
 
     vec3 lightPos = tunnelPath(uTime * speed) - vec3(0, 0, 1.0);
     vec3 lightIntensity = vec3(0.4, 0.4, 0.4);
 
     vec3 normal = estimateNormal(p);
+    if (hitObject.objectId == WALL_ID || hitObject.objectId == BOLT_ID) {
+        const float bumpFactor = 0.02;
+        normal = applyBumpMap(p, normal, bumpFactor / (1 + hitObject.distance / FAR_PLANE_DIST));
+    }
+
     float shadow = calcSoftShadow(p, lightPos);
     float ao = calcAmbientOcclusion(p, normal);
 
