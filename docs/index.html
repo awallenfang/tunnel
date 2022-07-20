@@ -12,7 +12,7 @@
         <section class="section">
             <h1>Tunnel Dokumentation</h1>
             <p>Das Prinzip dieses Projektes ist es zu experimentieren was alles mittels impliziter Grafik möglich ist und wo gegebenenfalls auch Schwierigkeiten im Vergleich zu expliziter Darstellung liegen.</p>
-            <p>Dazu hat jeweils jede Person einen Tunnel in einem Shader implizit definiert und darauf verschiedene Effekte, wie Pathtracing und Ambient Occlusion implementiert, welche dann hintereinander gerendert werden.</p>
+            <p>Dazu hat jede Person jeweils einen Tunnel in einem Shader implizit definiert und darauf verschiedene Effekte, wie Pathtracing und Ambient Occlusion implementiert, welche dann hintereinander gerendert werden.</p>
             <p>Die drei enstandenen Tunnel sind:
                 <ul>
                     <li>
@@ -28,16 +28,16 @@
             </p>
 
             <p>
-                Alle Tunnel wurden mittels Ray-Marching implementiert, wobei eine <abbr title="Signed Distance Function">SDF</abbr> definiert wird, welche zu eine Inputposition den Abstand zu der nächsten Position der Umgebung zurückgibt. <br> 
+                Alle Tunnel wurden mittels Ray-Marching implementiert, wobei eine <abbr title="Signed Distance Function">SDF</abbr> definiert wird, welche zu einer Inputposition den Abstand zu der nächsten Position der Umgebung zurückgibt. <br> 
                 Damit werden dann Strahlen in die Szene geschossen, bei denen jeweils die Entfernung der <abbr title="Signed Distance Function">SDF</abbr> nach vorne geschritten wird, bis ein Threshold erreicht wird. Zurückgegeben wird dann die insgesamt zurückgelegte Entfernung.
             </p>
 
             <h2>Rendering</h2>
             <p>
                 Jeder Tunnel befindet sich in einer eigenen Shader Datei, die getrennt voneinander mittels tunnel.cpp gerendert werden. 
-                Um einen Tunnel auszuwählen wird die Environment Variabel "SHADER_OVERWRITE" genutzt. Die drei Tunnelnamen sind "tunnel_gem.frag", "tunnel_industrial.frag" und "voxel_trace.frag". <br>
-                Der Voxel Tunnel wird also mit "SHADER_OVERWRITE=voxel_trace.frag ./tunnel" ausgeführt. <br><br>
-                Um die gerenderten Frames auch abzuspeichern muss die Variabel "SCREEN_DUMP" gesetzt werden. Um den Voxel-Tunnel zu rendern ist also der Befehl "SCREEN_DUMP=TRUE SHADER_OVERWRITE=voxel_trace.frag ./tunnel" nötig.
+                Um einen Tunnel auszuwählen wird die Environment Variabel "SHADER_OVERWRITE" genutzt. Die drei Tunnelnamen sind "tunnel_gem", "pipe" und "voxel_trace". <br>
+                Der Voxel Tunnel wird also mit "SHADER_OVERWRITE=voxel_trace ./tunnel" ausgeführt. <br><br>
+                Um die gerenderten Frames auch abzuspeichern muss die Variabel "SCREEN_DUMP" gesetzt werden. Um den Voxel-Tunnel zu rendern ist also der Befehl "SCREEN_DUMP=TRUE SHADER_OVERWRITE=voxel_trace ./tunnel" nötig.
             </p>
 
             <p>
@@ -50,26 +50,26 @@
                 <h3>Was ist ein Voxel?</h3>
                 <p>Ein Voxel kann man sich als 3D Äquivalent eines Pixels vorstellen.
                     Dabei wird der Raum in ein Raster aufgeteilt wo jeder Punkt im Raum zu genau einer Zelle in dem Gitter zugeordnet ist.
-                    Beim rendern wird dies oft durch eine Blockwelt repräsentiert wie zu Beispiel bei Minecraft.</p>
+                    Beim Rendern wird dies oft durch eine Blockwelt repräsentiert wie zu Beispiel bei Minecraft.</p>
             </section>
             <section class="subsection">
                 <h3>Voxel durch impliziertes Rendern darstellen.</h3>
                 <p>Da wir in unserem Projekt das implizierte Rendern gewählt haben mussten wir eine Möglichkeit Voxel dort darzustellen.</p>
                 <h3>1. Die Map Funktion</h3>
-                <p>Unser erster Ansatz war die Voxel durch eine Map funktion zu repräsentieren. Dabei wird die Position auf das Raster übertragen. Falls dieser Voxel gefüllt ist wird ein Treffer registriert und eine negative Distanz innerhalb des Voxels zurückgegeben falls kein Treffer registiert wird muss die größte Distanz innerhalb des Voxels berechnet werden und dies ist dann die Distanz der sdf.</p>
+                <p>Unser erster Ansatz war die Voxel durch eine Map Funktion zu repräsentieren. Dabei wird die Position auf das Raster übertragen. Falls dieser Voxel gefüllt ist wird ein Treffer registriert und eine negative Distanz innerhalb des Voxels zurückgegeben. Falls kein Treffer registiert wird muss die größte Distanz innerhalb des Voxels berechnet werden und dies ist dann die Distanz der <abbr title="Signed Distance Function">SDF</abbr>>.</p>
                 <h4>Vorteile</h4>
                 <ul>
                     <li>Sehr einfach in bestehende Renderer einzubauen</li>
-                    <li>Kann leicht mit einer nicht Voxel welt verbunden werden</li>
+                    <li>Kann leicht mit einer nicht Voxel Welt verbunden werden</li>
                 </ul>
                 <h4>Nachteile</h4>
                 <ul>
-                    <li>Distanzen zu berechnen ist anstrengend da auch die Diagonalen Nachbarn betrachtet werden müssten</li>
+                    <li>Distanzen zu berechnen ist anstrengend da auch die diagonalen Nachbarn betrachtet werden müssten</li>
                 </ul>
             </section>
             <section class="subsection">
                 <h3>2. Die Trace Funktion</h3>
-                <p>Hierbei bewegen wir uns mit der Trace Funktion selber nur in größe der Voxel durch den Raum und nutzt eine jegliche Standart Map Funktion.</p>
+                <p>Hierbei bewegen wir uns mit der Trace Funktion selber nur in Größe der Voxel durch den Raum und nutzen die Standard Map Funktion.</p>
                 <h4>Vorteile</h4>
                 <ul>
                     <li>Kann in Verbindung mit jeglicher Map Funktion benutzt werden, es muss keine Welt in Voxel erzeugt werden</li>
@@ -81,34 +81,34 @@
             </section>
             <section>
                 <h3>Unser Ansatz:</h3>
-                <p>Wir haben Angefangen mit dem ersten Ansatz die Versuche sind leider erfolglos geblieben die nachfolgenden Bilder sind beispiele.</p>
+                <p>Wir haben angefangen mit dem ersten Ansatz. Die Versuche sind leider erfolglos geblieben. Die nachfolgenden Bilder sind Beispiele.</p>
                 <img src="images/voxel_1.png" alt="" width="50%" class="screen-dump">
                 <img src="images/voxel_2.png" alt="" width="50%" class="screen-dump">
                 <img src="images/voxel_5.png" alt="" width="50%" class="screen-dump">
 
-                <p>Danach haben wir den Ansatz 2 gewählt da dieser die Möglichkeit für standart Map funktion liefert und leichter umzusetzten ist.</p>
+                <p>Danach haben wir den Ansatz 2 gewählt da dieser die Möglichkeit für standard Map Funktionen liefert und leichter umzusetzten ist.</p>
                 <img src="images/voxel_6.png" class="screen-dump" title="Eine frühere Version des Höhlen Tunnels voxeliert dargestellt" width="50%">
                 <img src="images/voxel_14.png" class="screen-dump" title="Der erste Voxel Tunnel ohne jegliche extras" width="50%">
 
-                <p>Ein Vorteil an diesem Ansatz ist ebenfalls das Voxelgrößen sehr einfach anpassbar sind da der Tracer sehr einfach die Schrittgröße anpassen kann und somit sich auf die Voxelgröße verändert.</p>
+                <p>Ein Vorteil an diesem Ansatz ist ebenfalls, dass Voxelgrößen sehr einfach anpassbar sind, da der Tracer sehr einfach die Schrittgröße anpassen kann und somit sich auch die Voxelgröße verändert.</p>
             </section>
             <section class="subsection">
                 <h3>Wasser</h3>
-                <p>Die erste Idee des Wassers waren kleine teiche am boden des Tunnels</p>
+                <p>Die erste Idee des Wassers waren kleine Teiche am Boden des Tunnels</p>
                 <img src="images/voxel_7.png" class="screen-dump" alt="" width="50%">
-                <p>Jedoch wirkte Wasserbewegung dabei unrealistisch statisch Wasser wäre jedoch sehr langweilig gewesen, daher sind wir darauf gekommen das Wasser in einen Fluss zu verwandeln.</p>
+                <p>Jedoch wirkte Wasserbewegung dabei unrealistisch. Statisch Wasser wäre jedoch sehr langweilig gewesen, daher sind wir darauf gekommen das Wasser in einen Fluss zu verwandeln.</p>
                 <img src="images/voxel_8.png" class="screen-dump" alt="">
             </section>
             <section class="subsection">
                 <h3>Das Boot</h3>
-                <p>Die erste Idee war hier das Boot als einfache Geometrie in die Szene miteinzufügen das hat jedoch zu Problemen geführt. Das Boot ist hierbei eine hohle Halbkugel.</p>
+                <p>Die erste Idee war hier das Boot als einfache Geometrie in die Szene miteinzufügen. Das hat jedoch zu Problemen geführt. Das Boot ist hierbei eine hohle Halbkugel.</p>
                 <img src="voxel_boot_schlecht.png" class="screen-dump" alt="" width="50%">
-                <p>Das Erste Problem das auffällt ist Tatsache das das Boot unter Wasser ist, dieses Problem ließe sich leicht beheben jedoch gab es ein größeres Problem.</p>
-                <p> Das Boot bewegt sich sehr rucklig durch den Raum. Dies ist auch keine Überraschung da das Boot eine Mathematisch beschriebene Halbkugel ist und sobald sich diese durch den diskreten Raum bewegt sie automatisch anfängt sich blockig zu bewegen.</p>
-                <p>Den Ansatz den wir also stattdessen gewählt haben ist sehr ähnlich auch in vielen Spielen aus der first-person perspektive zu finden. Dabei werden die Hände oft seperat gerendert und dann über alles andere drüber gelegt damit die Hände nicht in naher Geometrie verschwinden. Hier wird das Boot durch einen weiteren Aufruf der Map Funktion gerendert, falls also bei diesem Aufruf das Boot getroffen wird nehmen wir das Boot als Farbe und ansonsten nutzen wir die normale Szene. </p>
+                <p>Das erste Problem ist die Tatsache, dass das Boot unter Wasser ist. Dieses Problem ließe sich leicht beheben jedoch gab es ein größeres Problem.</p>
+                <p>Das Boot bewegt sich sehr rucklig durch den Raum. Dies ist auch keine Überraschung da das Boot eine implizit beschriebene Halbkugel ist und sobald sich diese durch den diskreten Raum bewegt, fängt sie automatisch an sich blockig zu bewegen.</p>
+                <p>Den Ansatz den wir also stattdessen gewählt haben ist sehr ähnlich auch in vielen Spielen aus der First-Person Perspektive zu finden. Dabei werden die Hände oft seperat gerendert und dann über alles andere drüber gelegt, damit die Hände nicht in naher Geometrie verschwinden. Hier wird das Boot durch einen weiteren Aufruf der Map Funktion gerendert, falls also bei diesem Aufruf das Boot getroffen wird nehmen wir das Boot als Farbe und ansonsten nutzen wir die normale Szene.</p>
                 <img src="images/voxel_9.png" class="screen-dump" alt="">
-                <p>Jetzt stellt sich natürlich noch die Frage wie sich das Schwanken des Boots umsetzten lässt. Das rotieren der Halbkugel verändert nichts, da diese exakt die selbe Halbkugel rundherum ist habenn wir den Ansatz gewählt den Strahl den wir auf das Boot schießen zu rotieren.</p>
-                <p>Für das auf und abschwanken haben wir die blickrichtung der generellen Szene verändert da so das gesamte Blickfeld sich auf und ab bewegt.</p>
+                <p>Jetzt stellt sich natürlich noch die Frage wie sich das Schwanken des Boots umsetzten lässt. Das Rotieren der Halbkugel verändert nichts, da diese exakt die selbe Halbkugel rundherum ist habenn wir den Ansatz gewählt den Strahl den wir auf das Boot schießen zu rotieren.</p>
+                <p>Für das Auf- und Abschwanken haben wir die Blickrichtung der generellen Szene verändert da so das gesamte Blickfeld sich auf- und abbewegen lassen.</p>
             </section>
         </section>
         </section>
@@ -119,7 +119,7 @@
                 <p>
                     Das Ziel dieser Szene war es ein möglichst realistisches Rohr zu modellieren.
                     Das Modell ist dabei an ein mögliches Fertigungsverfahren angelehnt:<br>
-                    Zuerst werden drei Rohrbögen, welche jeweils ein Drittel eines Kreises abdecken verschweißt und bilden somit einzelne Rohrstücke.
+                    Zuerst werden drei Rohrbögen, welche jeweils ein Drittel eines Kreises abdecken, verschweißt und bilden somit einzelne Rohrstücke.
                     Diese Rohrstücke werden dann wiederrum mittels Bolzen untereinander befestigt. Um die Stabilität des Tunnels
                     zu verbessern werden weiterhin die Rohrstücke um ein Sechstel versetzt aneinander gereiht.
                 </p>
@@ -146,7 +146,7 @@
                 <h4>Tunnel Pfad</h4>
                 <p>
                     Damit das Rohr nicht endlos in z-Richtung wächst wird sowohl der Beobachter als auch die Szene mittels einer Pfadfunktion verschoben.
-                    Diese ist der Einfachheit halber eine von der z-Koordinate abhängig sin und cos Translation der x und y Koordinate. Bei einer höheren Geschwindigkeit ist somit auch eine Periode erkennbar,
+                    Diese ist der Einfachheit halber eine von der z-Koordinate abhängige sin- und cos-Translation der x- und y-Koordinate. Bei einer höheren Geschwindigkeit ist somit auch eine Periode erkennbar,
                     für kürzere Rendering des Tunnels ist das allerdings nicht störend
                 </p>
                 <img src="images/pipe_3.png" class="screen-dump">
@@ -190,13 +190,13 @@
                 <p>
                     Ziel war es einen Pathtracer zu implementieren, durch den verschieden-farbige Lampen an den Wänden Licht an alle Stellen der Höhle strahlen können. <br>
                     Bevor überhaupt begonnen wurde war bereits klar, dass es unmöglich sein wird dies in Echtzeit umzusetzen, geschweige denn in kurzer Zeit zu rendern. 
-                    Im Laufe der Arbeitszeit war die Überlegung das Pathtracing-System auch auf die anderen beiden Tunnel anzuwenden, was, aber den zeitlichen Rahmen für das Rendern sprengen würde. <br>
-                    Dadurch ist das nun implementierte System aber sehr abgeschlossen und kann ohne viel Arbeit in ein weiteren Shader mit Ray-Marching übernommen werden.
+                    Im Laufe der Arbeitszeit war die Überlegung das Pathtracing-System auch auf die anderen beiden Tunnel anzuwenden, was aber den zeitlichen Rahmen für das Rendern sprengen würde. <br>
+                    Dadurch ist das nun implementierte System aber sehr abgeschlossen und kann ohne viel Arbeit in einen weiteren Shader mit Ray-Marching übernommen werden.
                 </p>
 
                 <p>
                     Dabei war ebenfalls klar, dass man sich in einem Tunnel befindet und somit kein Sonnenlicht existiert. 
-                    Dies hat zur Folge, dass ein Großteil der Strahlen bei simplem Pathtracing ins leere schießen und somit nicht zum Licht beitragen.
+                    Dies hat zur Folge, dass ein Großteil der Strahlen bei simplem Pathtracing ins leere schießen und somit nicht zum Licht beitragen, wodurch die Konvergenz relativ langsam ist.
                 </p>
             </section>
             <section class="subsection">
@@ -222,7 +222,7 @@
                 </div>
                 
                 <p>
-                    Bei den stärkeren Noise-Operationen wird aber auch bereits eine schwäche von Ray-Marching offengelegt. Eine Addition auf Distantfunktionen resultiert nämlich nicht in einer weiteren korrekten Distanzfunktion, weswegen sich in diesem Fall die schwarzen Stellen entwickeln. <br>
+                    Bei den stärkeren Noise-Operationen wird aber auch bereits eine Schwäche von Ray-Marching offengelegt. Eine Addition auf Distantfunktionen resultiert nämlich nicht in einer weiteren korrekten Distanzfunktion, weswegen sich in diesem Fall die schwarzen Stellen entwickeln. <br>
                     An diesen Stellen springt der Strahl wegen den falschen Distanzfunktionen zu weit und trifft das korrekte Ziel somit nicht. 
                 </p>
 
@@ -249,7 +249,7 @@
                 <h3>Rendering</h3>
                 <p>
                     Anfänglich wurden zum Testen von der Umgebung die Schatten direkt basierend auf Punktlichtquellen implementiert, was aber schnell auch mit dem neuen Pathtracer ersetzt wurde. <br>
-                    Dabei entstanden aber auch bereits Probleme mit falschen <abbr title="Signed Distance Function">SDF</abbr>-Werten, wodurch Schatten falsche berechnet wurden. <br> 
+                    Dabei entstanden aber auch bereits Probleme mit falschen <abbr title="Signed Distance Function">SDF</abbr>-Werten, wodurch Schatten falsch berechnet wurden.<br> 
                 </p>
 
                 <img src="images/gem_5.png">
@@ -262,8 +262,8 @@
                 <img src="images/gem_6.png" class="screen-dump">
 
                 <p>
-                    Dies wurde gelöst, indem pro Shader-Durchlauf nur ein einziger Sample berechnet wird und diese Outputs dann mithilfe des Alpha-Kanals in OpenGL addiert werden, bis das vollständige Bild gerendert wurde. <br>
-                    Bei dem setzen des Alpha-Wertes wird noch die Stärke der Farben insgesamt erhöht, indem Alpha nicht auf 1/samples gesetzt wird, sondern nur auf 1/5, da ein großteil der Samples schwarz sind. Dadurch wird zwar teilweise Realismus verloren, aber die Konvergenz wird erhöht.
+                    Dies wurde gelöst, indem pro Shader-Durchlauf nur ein einziger Sample berechnet wird und diese Outputs dann mithilfe des Alpha-Kanals in OpenGL addiert werden, bis das vollständige Bild gerendert wird. <br>
+                    Bei dem setzen des Alpha-Wertes wird noch die Stärke der Farben insgesamt erhöht, indem Alpha nicht auf 1/samples gesetzt wird, sondern nur auf 1/5, da ein Großteil der Samples schwarz sind. Dadurch wird zwar teilweise Realismus verloren, aber die Konvergenz wird erhöht.
                 </p>
             </section>
         </section>

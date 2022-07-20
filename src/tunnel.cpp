@@ -100,7 +100,7 @@ main(int, char *argv[]) {
     glfwSetFramebufferSizeCallback(window, resizeCallback);
 
     std::string vertexShaderName = "tunnel.vert";
-    std::string fragmentShaderName = "tunnel_gem.frag";
+    std::string fragmentShaderName = "voxel_trace.frag";
 
     if (const char *shaderOverride = std::getenv("SHADER_OVERWRITE")) {
         fragmentShaderName = std::string(shaderOverride) + ".frag";
