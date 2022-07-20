@@ -1,13 +1,10 @@
 #include "common.hpp"
 #include "shader.hpp"
 #include "buffer.hpp"
-#include "mesh.hpp"
 #include "helper.hpp"
 #include <iostream>
 #include <chrono>
-#include <string>
 #include <filesystem>
-#include <stb_image.h>
 
 int WINDOW_WIDTH = 1920;
 int WINDOW_HEIGHT = 1080;
