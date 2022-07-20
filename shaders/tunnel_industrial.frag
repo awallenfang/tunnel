@@ -10,6 +10,7 @@
 out vec4 frag_color;
 uniform uvec2 uRes;
 uniform float uTime;
+uniform sampler2D tex;
 
 struct Object {
     float distance;
@@ -24,7 +25,7 @@ struct Material {
 };
 
 const int WALL_ID = 0;
-const Material WALL = Material(vec3(0.2), vec3(0.7, 0.2, 0.2), vec3(1.0, 1.0, 1.0), 30.0);
+const Material WALL = Material(vec3(0.6), vec3(0.7, 0.2, 0.2), vec3(1.0, 1.0, 1.0), 30.0);
 
 const int BOLT_ID = 1;
 const Material BOLT = Material(vec3(.75, .75, .75), vec3(.8, .75, .6), vec3(1.0, 1.0, 1.0), 1000.0);
@@ -41,6 +42,20 @@ float n3D(vec3 p){
     h.xy = mix(h.xz, h.yw, p.y);
     return mix(h.x, h.y, p.z); // Range: [0, 1].
 }
+
+vec3 tex3D(sampler2D channel, vec3 p, vec3 n){
+    n = max(abs(n) - .2, 0.001);
+    n /= dot(n, vec3(1));
+    vec3 tx = texture(channel, p.yz).xyz;
+    vec3 ty = texture(channel, p.xz).xyz;
+    vec3 tz = texture(channel, p.xy).xyz;
+
+    // Textures are stored in sRGB (I think), so you have to convert them to linear space
+    // (squaring is a rough approximation) prior to working with them... or something like that. :)
+    // Once the final color value is gamma corrected, you should see correct looking colors.
+    return tx*tx*n.x + ty*ty*n.y + tz*tz*n.z;
+}
+
 
 
 Object objUnion(Object object1, Object object2) {
@@ -285,6 +300,20 @@ float calculateBumpMap(vec3 p) {
     return res;
 }
 
+vec3 texBump( sampler2D tx, in vec3 p, in vec3 n, float bf){
+
+    const vec2 e = vec2(0.1, 0);
+
+    // Three gradient vectors rolled into a matrix, constructed with offset greyscale texture values.
+    mat3 m = mat3( tex3D(tx, p - e.xyy, n), tex3D(tx, p - e.yxy, n), tex3D(tx, p - e.yyx, n));
+
+    vec3 g = vec3(0.299, 0.587, 0.114)*m; // Converting to greyscale.
+    g = (g - dot(tex3D(tx,  p , n), vec3(0.299, 0.587, 0.114)) )/e.x; g -= n*dot(n, g);
+
+    return normalize( n + g*bf ); // Bumped normal. "bf" - bump factor.
+
+}
+
 vec3 applyBumpMap(vec3 p, vec3 normal, float bumpFactor) {
     const vec2 e = vec2(EPSILON, 0);
 
@@ -298,7 +327,7 @@ vec3 applyBumpMap(vec3 p, vec3 normal, float bumpFactor) {
 }
 
 void main() {
-    const float speed = 1.0;
+    const float speed = 3.0;
 
     vec3 ro = tunnelPath(uTime * speed);
     vec3 viewDir = rayDirection(45.0, uRes.xy, gl_FragCoord.xy);
@@ -329,6 +358,14 @@ void main() {
     if (hitObject.objectId == WALL_ID || hitObject.objectId == BOLT_ID) {
         const float bumpFactor = 0.02;
         normal = applyBumpMap(p, normal, bumpFactor / (1 + hitObject.distance / FAR_PLANE_DIST));
+
+        const float tSize0 = 0.6;
+        vec3 tx = tex3D(tex, p * tSize0, normal);
+        tx = smoothstep(0., .5, tx);
+        color *= tx;
+
+        float tbf = .08;
+        normal = texBump(tex, p * tSize0 * 2, normal, tbf);
     }
 
     float shadow = calcSoftShadow(p, lightPos);
