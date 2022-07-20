@@ -3,7 +3,6 @@
 #include "buffer.hpp"
 #include "helper.hpp"
 #include <iostream>
-#include <chrono>
 #include <filesystem>
 
 int WINDOW_WIDTH = 1920;
@@ -12,11 +11,7 @@ int FPS = 30;
 int samples = 1;
 const int light_amt = 250;
 
-std::chrono::time_point<std::chrono::system_clock> start_time;
-
 float getTimeDelta(int frame);
-
-glm::uvec2 uRes;
 
 glm::vec4 color;
 glm::vec3 z;
@@ -25,19 +20,11 @@ unsigned int fbo = 0;
 unsigned int framebuffer_tex = 0;
 unsigned int depth_rbo = 0;
 
-unsigned int framebuffer_handle = 0;
-
-void
-resizeCallback(GLFWwindow *window, int width, int height);
-
-// called whenever the window gets resized
 void
 resizeCallback(GLFWwindow *window, int width, int height);
 
 void
 screenDump(int W, int H, int frame);
-
-void write_frame(int W, int H, int frame);
 
 unsigned int
 create_texture_rgba32f(int width, int height) {
@@ -59,14 +46,14 @@ create_texture_rgba32f(int width, int height, float *data) {
 }
 
 float *
-load_texture_data(std::string filename, int *width, int *height) {
+load_texture_data(const std::string& filename, int *width, int *height) {
     int channels;
     unsigned char *file_data = stbi_load(filename.c_str(), width, height, &channels, 3);
 
     int w = *width;
     int h = *height;
 
-    float *data = new float[4 * w * h];
+    auto *data = new float[4 * w * h];
     for (int j = 0; j < h; ++j) {
         for (int i = 0; i < w; ++i) {
             data[j * w * 4 + i * 4 + 0] = static_cast<float>(file_data[j * w * 3 + i * 3 + 0]) / 255;
@@ -164,7 +151,7 @@ main(int, char *argv[]) {
 
     unsigned int VBO = makeBuffer(GL_ARRAY_BUFFER, GL_STATIC_DRAW, sizeof(vertices), vertices);
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void *) 0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void *) nullptr);
     glEnableVertexAttribArray(0);
 
     unsigned int IBO = makeBuffer(GL_ELEMENT_ARRAY_BUFFER, GL_STATIC_DRAW, sizeof(indices), indices);
@@ -282,9 +269,7 @@ void resizeCallback(GLFWwindow *, int width, int height) {
 }
 
 float getTimeDelta(int frame) {
-    // auto now = std::chrono::system_clock::now();
-    // return static_cast<float>((std::chrono::duration_cast<std::chrono::milliseconds>(now - start_time).count() % 500000) / 1000.f);
-    return (float) frame / FPS;
+    return (float) frame / (float) FPS;
 }
 
 void screenDump(int W, int H, int frame) {
