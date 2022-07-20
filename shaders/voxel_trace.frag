@@ -8,6 +8,8 @@ out vec4 frag_color;
 uniform uvec2 uRes;
 uniform float uTime;
 
+// noise function by https://gist.github.com/patriciogonzalezvivo/670c22f3966e662d2f83
+
 float mod289(float x){return x - floor(x * (1.0 / 289.0)) * 289.0;}
 vec4 mod289(vec4 x){return x - floor(x * (1.0 / 289.0)) * 289.0;}
 vec4 perm(vec4 x){return mod289(((x * 34.0) + 1.0) * x);}
@@ -32,18 +34,23 @@ float noise(vec3 p){
     vec2 o4 = o3.yw * d.x + o3.xz * (1.0 - d.x);
 
     return o4.y * d.y + o4.x * (1.0 - d.y);
-    // return 0.;
 }
 
+// struct representing hit
 struct Object {
     float dist;
     int material;
 };
 
-vec3 path2(float z){ 
-    //return vec2(0); // Straight.
-    float a = sin(z * 0.11);// 0.11
-    float b = cos(z * 0.14); // 0.14
+struct Config {
+    float voxelsize;
+    int scene;
+};
+
+// path of tunnel and view through tunnel
+vec3 path(float z){ 
+    float a = sin(z * 0.11);
+    float b = cos(z * 0.14);
     
     float x = a*4. -b*1.5;
     float y = b*4 + a*1.5;
@@ -51,52 +58,110 @@ vec3 path2(float z){
     return vec3(x, y, z); 
 }
 
+/********************
+*   opertations     *
+*********************/
+
+
 Object opSharpUnion(Object ob1, Object ob2) {
     if(ob1.dist < ob2.dist) return ob1;
     return ob2;
 }
 
+/****************
+*   Tunnel      *
+*****************/
+
+// sdf: sphere
 Object sdSphere(vec3 pos, vec3 center, float radius, int mat) {
     return Object(length(pos - center) - radius,0);
 }
 
+// sdf: water
 Object sdPlaneWave(vec3 pos, vec4 normal, int mat) {
-    vec3 p = path2(pos.z);
-    vec3 dir = normalize(path2(pos.z) - path2(pos.z-1));
+    vec3 p = path(pos.z);
+    vec3 dir = normalize(path(pos.z) - path(pos.z-1));
+    float water_speed = 3;
     
-    return Object(dot(pos, normal.xyz) + normal.w + sin(pos.z + uTime*3)/2 * noise(pos + uTime/10.) - sin(((pos.x - p.x) * 0.3 * dir).x)/1 * noise(pos), mat);
+    float dist = dot(pos, normal.xyz) + normal.w 
+                + sin(pos.z + uTime*water_speed)/2 * noise(pos + uTime/10.) 
+                - sin(((pos.x - p.x) * 0.3 * dir).x)/1 * noise(pos);
+    return Object(dist, mat);
 }
 
-vec3 campos;
+// sdf: Hollow Sphere: https://iquilezles.org/articles/distfunctions/
+float sdCutHollowSphere( vec3 p, float r, float h, float t )
+{
+  // sampling independent computations (only depend on shape)
+  float w = sqrt(r*r-h*h);
+  
+  // sampling dependant computations
+  vec2 q = vec2( length(p.xz), p.y );
+  return ((h*q.x<w*q.y) ? length(q-vec2(w,h)) : 
+                          abs(length(q)-r) ) - t;
+}
 
+
+
+Object sdBoat(vec3 p, vec3 position) {
+   p -= position;
+   float h = 0.5;
+   float sphereDist = sdCutHollowSphere(p, 2.,h,0.2);
+   return Object(sphereDist, 4);
+}
+
+//#define GITTERBOAT
+
+//sdf: complete Tunnel
 Object map(vec3 pos) {
     float size = 5;
-    vec2 p = -path2(pos.z).xy + pos.xy*vec2(1, 1);
+    vec2 p = -path(pos.z).xy + pos.xy*vec2(1, 1);
     Object wall_distance = Object(size - length(p) + noise(pos),1);
+    
+    float rand = fract(noise(pos));
+    if(rand < 0.3) {
+        wall_distance.material = 1;
+    }else if(rand < 0.6) {
+        wall_distance.material = 5;
+    }else {
+        wall_distance.material = 6;
+    }
+
     Object planeDist = sdPlaneWave(pos, vec4(0,1., 0, 3.5), 2);
-
-    //float spheredist = sdSphere(pos, path2(campos.z - 5.), 1.);
-    //if(spheredist < wall_distance) mat = 2;
-    //return opSharpUnion(wall_distance,spheredist);
-
+    
+#ifdef GITTERBOAT
+    vec3 boatPos = path(-uTime * 7.-1);
+    boatPos.y -= 3.3;
+    Object boat = sdBoat(pos, boatPos);
+    Object other = opSharpUnion(boat, planeDist);
+    
+    return opSharpUnion(wall_distance,other);
+#else
     return opSharpUnion(wall_distance,planeDist);
+#endif
 }
 
-int s = 1;
-
-Object scene(vec3 pos) {
+Object scene(vec3 pos, int scene) {
+    switch(scene){
+        case 0: return map(pos);
+        case 1: return sdBoat(pos, vec3(0.,-3.3,-.2));
+    };
     return map(pos);
 }
+
+/***************************
+*   Sphere Raymarching     *
+****************************/
 
 vec3 calcNormal(vec3 p){
     vec2 e = vec2(EPSILON, 0.);
 
-    float d = scene(p).dist;
+    float d = scene(p,0).dist;
 
     vec3 gradient = d - vec3(
-    scene(p + e.xyy).dist,
-    scene(p + e.yxy).dist,
-    scene(p + e.yyx).dist
+    scene(p + e.xyy,0).dist,
+    scene(p + e.yxy,0).dist,
+    scene(p + e.yyx,0).dist
     );
 
     return normalize(gradient);
@@ -112,7 +177,7 @@ Object trace(vec3 ro, vec3 rd, out bool hit,out vec3 normal)
     for(int i=0; i<maxSteps; i++)
     {
         vec3 pos = ro + t * rd;
-        Object d = scene(pos);
+        Object d = scene(pos,0);
 	    
         if (d.dist < hitThreshold) {
             hit = true;
@@ -126,14 +191,17 @@ Object trace(vec3 ro, vec3 rd, out bool hit,out vec3 normal)
     return Object(-1,0);
 }
 
-float voxelsize = 0.4; 
+/***************************
+*   Voxel Raymarching      *
+****************************/
 
-vec3 worldToVoxel(vec3 i)
+
+vec3 worldToVoxel(vec3 i, float voxelsize)
 {
     return floor(i/voxelsize);
 }
 
-vec3 voxelToWorld(vec3 i)
+vec3 voxelToWorld(vec3 i, float voxelsize)
 {
     return i*voxelsize;	
 }
@@ -142,16 +210,17 @@ float maxVec(vec3 v) {
     return max(max(v.x,v.y),v.z);
 }
 
-Object voxel_trace(vec3 ro, vec3 rd, out bool hit, out vec3 hitNormal)
+Object voxel_trace(vec3 ro, vec3 rd, out bool hit, out vec3 hitNormal, Config conf)
 {
+    float voxelsize = conf.voxelsize;
     int maxSteps = int(100/voxelsize);
     const float isoValue = 0.;
 
-    vec3 voxel = worldToVoxel(ro);
+    vec3 voxel = worldToVoxel(ro, voxelsize);
     vec3 step = sign(rd);
 
     vec3 nearestVoxel = voxel + vec3(rd.x > 0.0, rd.y > 0.0, rd.z > 0.0);
-    vec3 tMax = (voxelToWorld(nearestVoxel) - ro) / rd;
+    vec3 tMax = (voxelToWorld(nearestVoxel, voxelsize) - ro) / rd;
     vec3 tDelta = voxelsize / abs(rd);
 
     vec3 hitVoxel = voxel;
@@ -159,7 +228,7 @@ Object voxel_trace(vec3 ro, vec3 rd, out bool hit, out vec3 hitNormal)
     hit = false;
     float hitT = 0.0;
     for(int i=0; i<maxSteps; i++) {
-        Object d = scene(voxelToWorld(voxel));        
+        Object d = scene(voxelToWorld(voxel, voxelsize), conf.scene);        
         if (d.dist <= isoValue) {
             hit = true;
 	    	hitVoxel = voxel;
@@ -189,6 +258,11 @@ Object voxel_trace(vec3 ro, vec3 rd, out bool hit, out vec3 hitNormal)
 	return Object(-1, 0);
 }
 
+/***********
+*   Main   *
+************/
+
+// convert material index into color
 vec3 material(int mat) {
     if(mat == 1) {
         return vec3(0.5, 0.5, 0.5);
@@ -199,29 +273,52 @@ vec3 material(int mat) {
     if(mat == 3) {
         return vec3(0., 0.,1.);
     }
-    return vec3(.8, .5, .21);
+    if(mat == 4) {
+        return vec3(153/255., 71/255., 16/255.);
+    }
+    if(mat == 5) {
+        return vec3(0.6, 0.6, 0.6);
+    }
+    if(mat == 6) {
+        return vec3(0.4, 0.4, 0.4);
+    }
+    return vec3(.0, .0, .0);
 }
 
-vec3 render(vec3 ro, vec3 rd) {
+mat3 rot;
+mat3 rotZ;
+
+#define VOXEL
+vec3 render(vec3 ro, vec3 rd, float voxelsize) {
     bool hit;
     vec3 nor;
     
-#define VOXEL
 #ifdef VOXEL
-    Object t = voxel_trace(ro, rd, hit, nor);
+    Object t = voxel_trace(ro, rotZ * rd, hit, nor, Config(voxelsize,0));
     nor = -nor;
+
+#ifndef GITTERBOAT
+    bool hit2;
+    vec3 nor2;
+    
+    Object boat = voxel_trace(vec3(0.), rot *  rd, hit2, nor2, Config(voxelsize, 1));
+    if(hit2) {
+        hit = hit2;
+        nor = -nor2;
+        t = boat;
+    }
+#endif
+
 #else
     Object t = trace(ro, rd, hit, nor);
 #endif
     
     vec3 col = material(t.material);
     if(hit) {
-        vec3 pos = ro + t.dist*rd;
-        //return nor;
         col = col * max(dot(normalize(rd), nor), 0.);
     }
 
-    //col = mix(col , vec3(.0, .0, .0), smoothstep(0., .95, t*2/FAR_PLANE));
+    col = mix(col , vec3(.0, .0, .0), smoothstep(.5, .95, t.dist*2/FAR_PLANE));
 
     return col;
 }
@@ -230,25 +327,58 @@ void main()
 {
     vec2 uv = (gl_FragCoord.xy / vec2(uRes.xy))*2.0-1.0;
 
+
     // compute ray origin and direction
     float asp = uRes.x / uRes.y;
     
-    float z = -uTime * 5.;
-    vec3 ro = path2(z);
-    //if(ro.y < 0) ro.y *= 0.8;
-    vec3 prev = path2((z+1));
+    float z = -uTime * 7.;
+    vec3 ro = path(z);
+    ro.y -= 1;
+    
+    vec3 prev = path((z+1));
     vec3 lookdir = normalize(ro-prev);
+    //lookdir.y += sin(uTime*4)/10.;
+    //lookdir.y += 0.3;
     vec3 move = lookdir - vec3(0.,0.,-1.);
     vec2 uvmod = uv + move.xy;
-    campos = ro;
 
     vec3 rd = normalize(vec3(asp*uvmod.x, uvmod.y, lookdir.z));
-    //rd = normalize(vec3(asp*uv.x,uv.y,-2.));
+    
     ro += rd*2.0;
-		
-    //voxelsize = mix(0.05, 0.75, (sin(uTime) + 1) / 2.0);
 
-    vec3 rgb = render(ro, rd);
+    float angle = acos(dot(normalize(vec2(0,-1)), normalize(lookdir.xz))) / 5.;
+    if(lookdir.x < 0) angle = -angle;
+    rot = mat3(
+        cos(angle), 0, -sin(angle),
+        0, 1, 0,
+        sin(angle), 0, cos(angle)
+    );
+
+    float angleZ = sin(uTime * 4.) * 0.1;
+
+    rotZ = mat3(
+        1, 0, 0,
+        0, cos(angleZ), -sin(angleZ),
+        0, sin(angleZ), cos(angleZ)
+    );
+
+
+#ifdef VOXEL
+    float voxelsize;
+    if(uTime <= 1.) {
+        voxelsize = mix(1.5,0.25,uTime);
+    }else {
+        voxelsize = 0.25; 
+    }
+
+    if(uTime >= 19.) {
+        voxelsize = mix(0.25,1.5,uTime - 19.);
+    }
+#else
+    float voxelsize = 0.;
+#endif
+
+    vec3 rgb = render(ro, rd, voxelsize);
 
     frag_color=vec4(rgb, 1.0);
 }

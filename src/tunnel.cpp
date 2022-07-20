@@ -10,7 +10,7 @@
 
 int WINDOW_WIDTH = 1280;
 int WINDOW_HEIGHT = 720;
-int FPS = 60;
+int FPS = 30;
 int samples = 1;
 
 std::chrono::time_point<std::chrono::system_clock> start_time;
@@ -83,7 +83,7 @@ main(int, char* argv[]) {
     glfwSetFramebufferSizeCallback(window, resizeCallback);
 
     std::string vertexShaderName = "tunnel.vert";
-    std::string fragmentShaderName = "tunnel_gem.frag";
+    std::string fragmentShaderName = "voxel_trace.frag";
 
     if (const char *shaderOverride = std::getenv("SHADER_OVERWRITE")) {
         fragmentShaderName = std::string(shaderOverride) + ".frag";
@@ -98,6 +98,7 @@ main(int, char* argv[]) {
     // load and compile shaders and link program
     unsigned int vertexShader = compileShader(vertexShaderName.c_str(), GL_VERTEX_SHADER);
     unsigned int fragmentShader = compileShader(fragmentShaderName.c_str(), GL_FRAGMENT_SHADER);
+
     unsigned int shaderProgram = linkProgram(vertexShader, fragmentShader);
     // after linking the program the shader objects are no longer needed
     glDeleteShader(fragmentShader);
@@ -203,9 +204,9 @@ main(int, char* argv[]) {
         if (shouldScreenDump){
             screenDump(WINDOW_WIDTH, WINDOW_HEIGHT, frame);
         }
-        // if (frame == 1) {
-        //     break;
-        // }
+        if (frame == 600) {
+             break;
+        }
         frame++;
     }
     

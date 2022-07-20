@@ -34,6 +34,71 @@
         </section>
         <section class="section">
             <h2>Voxel Tunnel</h2>
+            <section class="subsection">
+                <h3>Was ist ein Voxel?</h3>
+                <p>Ein Voxel kann man sich als 3D Äquivalent eines Pixels vorstellen.
+                    Dabei wird der Raum in ein Raster aufgeteilt wo jeder Punkt im Raum zu genau einer Zelle in dem Gitter zugeordnet ist.
+                    Beim rendern wird dies oft durch eine Blockwelt repräsentiert wie zu Beispiel bei Minecraft.</p>
+            </section>
+            <section class="subsection">
+                <h3>Voxel durch impliziertes Rendern darstellen.</h3>
+                <p>Da wir in unserem Projekt das implizierte Rendern gewählt haben mussten wir eine Möglichkeit Voxel dort darzustellen.</p>
+                <h3>1. Die Map Funktion</h3>
+                <p>Unser erster Ansatz war die Voxel durch eine Map funktion zu repräsentieren. Dabei wird die Position auf das Raster übertragen. Falls dieser Voxel gefüllt ist wird ein Treffer registriert und eine negative Distanz innerhalb des Voxels zurückgegeben falls kein Treffer registiert wird muss die größte Distanz innerhalb des Voxels berechnet werden und dies ist dann die Distanz der sdf.</p>
+                <h4>Vorteile</h4>
+                <ul>
+                    <li>Sehr einfach in bestehende Renderer einzubauen</li>
+                    <li>Kann leicht mit einer nicht Voxel welt verbunden werden</li>
+                </ul>
+                <h4>Nachteile</h4>
+                <ul>
+                    <li>Distanzen zu berechnen ist anstrengend da auch die Diagonalen Nachbarn betrachtet werden müssten</li>
+                </ul>
+            </section>
+            <section class="subsection">
+                <h3>2. Die Trace Funktion</h3>
+                <p>Hierbei bewegen wir uns mit der Trace Funktion selber nur in größe der Voxel durch den Raum und nutzt eine jegliche Standart Map Funktion.</p>
+                <h4>Vorteile</h4>
+                <ul>
+                    <li>Kann in Verbindung mit jeglicher Map Funktion benutzt werden, es muss keine Welt in Voxel erzeugt werden</li>
+                </ul>
+                <h4>Nachteile</h4>
+                <ul>
+                    <li>Der Renderer selber muss verändert werden</li>
+                </ul>
+            </section>
+            <section>
+                <h3>Unser Ansatz:</h3>
+                <p>Wir haben Angefangen mit dem ersten Ansatz die Versuche sind leider erfolglos geblieben die nachfolgenden Bilder sind beispiele.</p>
+                <img src="images/voxel_1.png" alt="" width="50%">
+                <img src="images/voxel_2.png" alt="" width="50%">
+                <img src="images/voxel_5.png" alt="" width="50%">
+
+                <p>Danach haben wir den Ansatz 2 gewählt da dieser die Möglichkeit für standart Map funktion liefert und leichter umzusetzten ist.</p>
+                <img src="images/voxel_6.png" title="Eine frühere Version des Höhlen Tunnels voxeliert dargestellt" width="50%">
+                <img src="images/voxel_14.png" title="Der erste Voxel Tunnel ohne jegliche extras" width="50%">
+
+                <p>Ein Vorteil an diesem Ansatz ist ebenfalls das Voxelgrößen sehr einfach anpassbar sind da der Tracer sehr einfach die Schrittgröße anpassen kann und somit sich auf die Voxelgröße verändert.</p>
+            </section>
+            <section class="subsection">
+                <h3>Wasser</h3>
+                <p>Die erste Idee des Wassers waren kleine teiche am boden des Tunnels</p>
+                <img src="images/voxel_7.png" alt="" width="50%">
+                <p>Jedoch wirkte Wasserbewegung dabei unrealistisch statisch Wasser wäre jedoch sehr langweilig gewesen, daher sind wir darauf gekommen das Wasser in einen Fluss zu verwandeln.</p>
+                <img src="images/voxel_8.png" alt="">
+            </section>
+            <section class="subsection">
+                <h3>Das Boot</h3>
+                <p>Die erste Idee war hier das Boot als einfache Geometrie in die Szene miteinzufügen das hat jedoch zu Problemen geführt. Das Boot ist hierbei eine hohle Halbkugel.</p>
+                <img src="voxel_boot_schlecht.png" alt="" width="50%">
+                <p>Das Erste Problem das auffällt ist Tatsache das das Boot unter Wasser ist, dieses Problem ließe sich leicht beheben jedoch gab es ein größeres Problem.</p>
+                <p> Das Boot bewegt sich sehr rucklig durch den Raum. Dies ist auch keine Überraschung da das Boot eine Mathematisch beschriebene Halbkugel ist und sobald sich diese durch den diskreten Raum bewegt sie automatisch anfängt sich blockig zu bewegen.</p>
+                <p>Den Ansatz den wir also stattdessen gewählt haben ist sehr ähnlich auch in vielen Spielen aus der first-person perspektive zu finden. Dabei werden die Hände oft seperat gerendert und dann über alles andere drüber gelegt damit die Hände nicht in naher Geometrie verschwinden. Hier wird das Boot durch einen weiteren Aufruf der Map Funktion gerendert, falls also bei diesem Aufruf das Boot getroffen wird nehmen wir das Boot als Farbe und ansonsten nutzen wir die normale Szene. </p>
+                <img src="images/voxel_9.png" alt="">
+                <p>Jetzt stellt sich natürlich noch die Frage wie sich das Schwanken des Boots umsetzten lässt. Das rotieren der Halbkugel verändert nichts, da diese exakt die selbe Halbkugel rundherum ist habenn wir den Ansatz gewählt den Strahl den wir auf das Boot schießen zu rotieren.</p>
+                <p>Für das auf und abschwanken haben wir die blickrichtung der generellen Szene verändert da so das gesamte Blickfeld sich auf und ab bewegt.</p>
+            </section>
+        </section>
         </section>
         <section class="section">
             <h2>Rohr</h2>
