@@ -70,31 +70,31 @@
             <section>
                 <h3>Unser Ansatz:</h3>
                 <p>Wir haben Angefangen mit dem ersten Ansatz die Versuche sind leider erfolglos geblieben die nachfolgenden Bilder sind beispiele.</p>
-                <img src="images/voxel_1.png" alt="" width="50%">
-                <img src="images/voxel_2.png" alt="" width="50%">
-                <img src="images/voxel_5.png" alt="" width="50%">
+                <img src="images/voxel_1.png" alt="" width="50%" class="screen-dump">
+                <img src="images/voxel_2.png" alt="" width="50%" class="screen-dump">
+                <img src="images/voxel_5.png" alt="" width="50%" class="screen-dump">
 
                 <p>Danach haben wir den Ansatz 2 gewählt da dieser die Möglichkeit für standart Map funktion liefert und leichter umzusetzten ist.</p>
-                <img src="images/voxel_6.png" title="Eine frühere Version des Höhlen Tunnels voxeliert dargestellt" width="50%">
-                <img src="images/voxel_14.png" title="Der erste Voxel Tunnel ohne jegliche extras" width="50%">
+                <img src="images/voxel_6.png" class="screen-dump" title="Eine frühere Version des Höhlen Tunnels voxeliert dargestellt" width="50%">
+                <img src="images/voxel_14.png" class="screen-dump" title="Der erste Voxel Tunnel ohne jegliche extras" width="50%">
 
                 <p>Ein Vorteil an diesem Ansatz ist ebenfalls das Voxelgrößen sehr einfach anpassbar sind da der Tracer sehr einfach die Schrittgröße anpassen kann und somit sich auf die Voxelgröße verändert.</p>
             </section>
             <section class="subsection">
                 <h3>Wasser</h3>
                 <p>Die erste Idee des Wassers waren kleine teiche am boden des Tunnels</p>
-                <img src="images/voxel_7.png" alt="" width="50%">
+                <img src="images/voxel_7.png" class="screen-dump" alt="" width="50%">
                 <p>Jedoch wirkte Wasserbewegung dabei unrealistisch statisch Wasser wäre jedoch sehr langweilig gewesen, daher sind wir darauf gekommen das Wasser in einen Fluss zu verwandeln.</p>
-                <img src="images/voxel_8.png" alt="">
+                <img src="images/voxel_8.png" class="screen-dump" alt="">
             </section>
             <section class="subsection">
                 <h3>Das Boot</h3>
                 <p>Die erste Idee war hier das Boot als einfache Geometrie in die Szene miteinzufügen das hat jedoch zu Problemen geführt. Das Boot ist hierbei eine hohle Halbkugel.</p>
-                <img src="voxel_boot_schlecht.png" alt="" width="50%">
+                <img src="voxel_boot_schlecht.png" class="screen-dump" alt="" width="50%">
                 <p>Das Erste Problem das auffällt ist Tatsache das das Boot unter Wasser ist, dieses Problem ließe sich leicht beheben jedoch gab es ein größeres Problem.</p>
                 <p> Das Boot bewegt sich sehr rucklig durch den Raum. Dies ist auch keine Überraschung da das Boot eine Mathematisch beschriebene Halbkugel ist und sobald sich diese durch den diskreten Raum bewegt sie automatisch anfängt sich blockig zu bewegen.</p>
                 <p>Den Ansatz den wir also stattdessen gewählt haben ist sehr ähnlich auch in vielen Spielen aus der first-person perspektive zu finden. Dabei werden die Hände oft seperat gerendert und dann über alles andere drüber gelegt damit die Hände nicht in naher Geometrie verschwinden. Hier wird das Boot durch einen weiteren Aufruf der Map Funktion gerendert, falls also bei diesem Aufruf das Boot getroffen wird nehmen wir das Boot als Farbe und ansonsten nutzen wir die normale Szene. </p>
-                <img src="images/voxel_9.png" alt="">
+                <img src="images/voxel_9.png" class="screen-dump" alt="">
                 <p>Jetzt stellt sich natürlich noch die Frage wie sich das Schwanken des Boots umsetzten lässt. Das rotieren der Halbkugel verändert nichts, da diese exakt die selbe Halbkugel rundherum ist habenn wir den Ansatz gewählt den Strahl den wir auf das Boot schießen zu rotieren.</p>
                 <p>Für das auf und abschwanken haben wir die blickrichtung der generellen Szene verändert da so das gesamte Blickfeld sich auf und ab bewegt.</p>
             </section>
@@ -102,6 +102,74 @@
         </section>
         <section class="section">
             <h2>Rohr</h2>
+            <section class="subsection">
+                <h3>Modellierung</h3>
+                <p>
+                    Das Ziel dieser Szene war es ein möglichst realistisches Rohr zu modellieren.
+                    Das Modell ist dabei an ein mögliches Fertigungsverfahren angelehnt:<br>
+                    Zuerst werden drei Rohrbögen, welche jeweils ein Drittel eines Kreises abdecken verschweißt und bilden somit einzelne Rohrstücke.
+                    Diese Rohrstücke werden dann wiederrum mittels Bolzen untereinander befestigt. Um die Stabilität des Tunnels
+                    zu verbessern werden weiterhin die Rohrstücke um ein Sechstel versetzt aneinander gereiht.
+                </p>
+                <h4>Technische Umsetzung des Modells</h4>
+                <p>
+                    Um nun diese wiederkehrenden Merkmale auf dem Kreis in der x-y-Ebene zu konstruieren, wird zuerst berechnet in welchem Kreisstück sich der Ausgangspunkt befindet.
+                    Danach werden die x- und y-Koordinaten des Ausgangspunktes um den Winkel des davor bestimmten Kreisbogens rotiert. Für ein dreigeteilten Kreis bleibt somit ein Punkt welcher einen Winkel 0 hatte bestehen und
+                    die Punkte mit dem Winkel 120° und 240° werden so rotiert, dass der neue Winkel 0 ist. Diese rotierte Punkte bieten jetzt die Möglichkeit mit einfachen bekannten SDFs (bspw. Quader, Würfel, usw.)
+                    kreisförmig wiederholende Merkmale zu modellieren. <br><br>
+                </p>
+                <p>
+                    <img src="images/pipe_1.jpg">
+                    <br>
+                    <small>Exemplarische Darstellung der Rotation für Bogenstücke der Größe 120° (Drittelstücke)</small>
+                </p>
+                <p>
+                    Auch die Versetzung je Rohrstück lässt sich mit dieser Methode leicht modellieren, so wird der Winkel, um den zuvor rotiert wurde, abhängig von der z-Koordinate wiederkehrend erhöht bzw. verringert.
+                    Damit sind die Punkte welche einen Winkel 0 auf dem Kreis haben nun um einen weiteren Winkel verschoben (hier 60° oder 1/6 Kreis) verschoben.
+                </p>
+                <img src="images/pipe_2.png" class="screen-dump">
+            </section>
+            <section class="subsection">
+                <h3>Zusätzliche Effekte & Verfahren</h3>
+                <h4>Tunnel Pfad</h4>
+                <p>
+                    Damit das Rohr nicht endlos in z-Richtung wächst wird sowohl der Beobachter als auch die Szene mittels einer Pfadfunktion verschoben.
+                    Diese ist der Einfachheit halber eine von der z-Koordinate abhängig sin und cos Translation der x und y Koordinate. Bei einer höheren Geschwindigkeit ist somit auch eine Periode erkennbar,
+                    für kürzere Rendering des Tunnels ist das allerdings nicht störend
+                </p>
+                <img src="images/pipe_3.png" class="screen-dump">
+                <h4>Soft-shadows & Ambient Occlusion</h4>
+                <p>
+                    Für die Szene wurden weiterhin Soft Shadows und Ambient Occlusion benutzt. Die Implementierung dieser, falls die Szene in SDFs vorliegt ist erstaunlich unkompliziert.<br>
+                    Für Ambient Occlusion wird ausgehenden von dem zu rendernden Punktes in Normalen-Richtung wenige Punkte mit geringem Abstand abgegangen und je Punkt wird der Abstand zu Szene bestimmt.
+                    Je höher die Differenz des gegangenen Weges und der Abstand zu Szene ist, desto mehr sollte der zu rendernde Punkt verdeckt werden. <br>
+                    Auch Soft-Shadows lassen sich erstaunlich leicht rendern:
+                    Hierfür wird ausgehend des zu rendernden Punktes zur Lichtquelle gemarched. Dabei wird das Minimum eines berechneten Schattens gesammelt (skaliert mit dem bereits gegangen Weges)
+                    und als Faktor auf die zu rendernde Farbe aufmultipliziert.
+                </p>
+                <img src="images/pipe_4.png" class="screen-dump">
+                <h4>Materialien</h4>
+                <p>
+                    Um der Szene noch ein wenig Abwechslung zu verpassen existieren nun zwei Materialien. Ein rotes (rostiges) Metall des Rohres und ein wenig silbernes Metall für die Bolzen.
+                </p>
+                <img src="images/pipe_5.png" class="screen-dump">
+                <h4>Bump Mapping</h4>
+                <p>
+                    Die beiden Materialien haben nun zwar interessantere Farben doch ist beides für Metall recht glatt. Abhilfe dafür sollte das Normal Bump Mapping schaffen.
+                    Dabei wird die Normale in diesem Fall abhängig von der Position pseudo zufällig verändert. Dafür wurde eine Funktion definiert, welche die Bump Map repräsentiert.
+                    Für diese Funktion wird der Gradient numerisch bestimmt. Danach wird die Normale mit dem Skalarprodukt zwischen Normale und Gradient skaliert.
+                    Außerdem ist auf die anschließende Normalisierung der Normale zu achten.
+                </p>
+                <img src="images/pipe_6.png" class="screen-dump">
+                <h4>Texturen und textur basiertes Bump Mapping</h4>
+                <p>
+                    Um der Szene einen abschließenden Schliff zu verpassen sollte weiterhin die beiden Materialien eine Textur bekommen.
+                    Mittels dieser Textur wird daraufhin ein weiteres Bump Mapping berechnet.
+                    Dieses unterscheidet sich im Prinzip nicht von dem davor genannten Bump Mapping. Die Besonderheit hierbei ist es jedoch ein rgb-Bild als Bump Map zu verwenden.
+                    Dafür wird der gegebene Texturwert in Grayscale umgerechnet und danach als Bump Map Funktion benutzt.
+                </p>
+                <img src="images/pipe_7.png" class="screen-dump">
+            </section>
         </section>
         <section class="section">
             <h2>Höhle</h2>
@@ -179,7 +247,7 @@
                     Die größte Schwierigkeit dabei war es den Code korrekt zu implementieren, sodass der PC bei dem Ausführen nicht wegen der großen Last im Shader abstürzt und den folgenden Output generiert.
                 </p>
 
-                <img src="images/gem_6.png">
+                <img src="images/gem_6.png" class="screen-dump">
 
                 <p>
                     Dies wurde gelöst, indem pro Shader-Durchlauf nur ein einziger Sample berechnet wird und diese Outputs dann mithilfe des Alpha-Kanals in OpenGL addiert werden, bis das vollständige Bild gerendert wurde. <br>

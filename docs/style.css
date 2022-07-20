@@ -22,3 +22,7 @@ img {
     max-width: 80%;
     margin: auto;
 }
+
+.screen-dump {
+    box-shadow: 0px 0px 5px;
+}
