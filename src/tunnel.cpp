@@ -10,7 +10,7 @@
 
 int WINDOW_WIDTH = 1280;
 int WINDOW_HEIGHT = 720;
-int FPS = 60;
+int FPS = 30;
 int samples = 1;
 
 std::chrono::time_point<std::chrono::system_clock> start_time;
@@ -96,13 +96,9 @@ main(int, char* argv[]) {
     }
 
     // load and compile shaders and link program
-<<<<<<< HEAD
     unsigned int vertexShader = compileShader(vertexShaderName.c_str(), GL_VERTEX_SHADER);
     unsigned int fragmentShader = compileShader(fragmentShaderName.c_str(), GL_FRAGMENT_SHADER);
-=======
-    unsigned int vertexShader = compileShader("tunnel_gem.vert", GL_VERTEX_SHADER);
-    unsigned int fragmentShader = compileShader("voxel_trace.frag", GL_FRAGMENT_SHADER);
->>>>>>> 932610b (Yes)
+
     unsigned int shaderProgram = linkProgram(vertexShader, fragmentShader);
     // after linking the program the shader objects are no longer needed
     glDeleteShader(fragmentShader);
@@ -144,13 +140,8 @@ main(int, char* argv[]) {
     build_framebuffer(WINDOW_WIDTH, WINDOW_HEIGHT);
 
 	// Define shader files to check for real-time recompiling
-<<<<<<< HEAD
     const auto vs = "../shaders/" + vertexShaderName;
     const auto fs = "../shaders/" + fragmentShaderName;
-=======
-    const auto vs = "../shaders/tunnel_gem.vert";
-    const auto fs = "../shaders/voxel_trace.frag";
->>>>>>> 932610b (Yes)
 
     auto dates = get_filetime(vs) + get_filetime(fs);
     auto newdates = dates;
@@ -163,13 +154,8 @@ main(int, char* argv[]) {
         newdates = get_filetime(vs) + get_filetime(fs);
         if (newdates != dates) {
             std::cout << "Recompiling shaders" << std::endl;
-<<<<<<< HEAD
             vertexShader = compileShader(vertexShaderName.c_str(), GL_VERTEX_SHADER);
             fragmentShader = compileShader(fragmentShaderName.c_str(), GL_FRAGMENT_SHADER);
-=======
-            vertexShader = compileShader("tunnel_gem.vert", GL_VERTEX_SHADER);
-            fragmentShader = compileShader("voxel_trace.frag", GL_FRAGMENT_SHADER);
->>>>>>> 932610b (Yes)
             shaderProgram = linkProgram(vertexShader, fragmentShader);
             
             res = glGetUniformLocation(shaderProgram, "uRes");
@@ -216,11 +202,11 @@ main(int, char* argv[]) {
         glfwPollEvents();
 
         if (shouldScreenDump){
-            //screenDump(WINDOW_WIDTH, WINDOW_HEIGHT, frame);
+            screenDump(WINDOW_WIDTH, WINDOW_HEIGHT, frame);
         }
-        // if (frame == 1) {
-        //     break;
-        // }
+        if (frame == 600) {
+             break;
+        }
         frame++;
     }
     
