@@ -92,7 +92,7 @@ main(int, char* argv[]) {
 
     const char *shouldScreenDump = std::getenv("SCREEN_DUMP");
     if (shouldScreenDump) {
-        //std::filesystem::create_directories("screen_dump/");
+        std::filesystem::create_directories("screen_dump/");
     }
 
     // load and compile shaders and link program
