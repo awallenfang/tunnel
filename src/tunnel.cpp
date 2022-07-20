@@ -114,10 +114,6 @@ main(int, char* argv[]) {
     int sample_num = glGetUniformLocation(shaderProgram, "sample_number");
     int light_pos = glGetUniformLocation(shaderProgram, "light_pos");
     int light_col = glGetUniformLocation(shaderProgram, "light_col");
-    int ugrid_x = glGetUniformLocation(shaderProgram, "grid_x");
-    int ugrid_x_pos = glGetUniformLocation(shaderProgram, "grid_x_pos");
-    int ugrid_y = glGetUniformLocation(shaderProgram, "grid_y");
-    int ugrid_y_pos = glGetUniformLocation(shaderProgram, "grid_y_pos");
 
 
     // vertex data
@@ -159,18 +155,13 @@ main(int, char* argv[]) {
     std::vector<glm::vec3> light_positions;
     std::vector<glm::int32> light_colors;
 
-    light_positions.push_back(glm::vec3(.25,2. , 1.));
-    light_positions.push_back(glm::vec3(-0.25,2. , 1.));
-    light_colors.push_back(3);
-    light_colors.push_back(3);
-
-    for (int i = 2; i < light_amt; i++) {
+    for (int i = 0; i < light_amt; i++) {
         int rando = rand();
         light_positions.push_back(glm::vec3(cos(rando) * 5., abs(sin(rando))* 5., 0.2f * i - 0.2f));
     }
 
     
-    for (int i = 2; i < light_amt; i++) {
+    for (int i = 0; i < light_amt; i++) {
         light_colors.push_back((rand() % 4) + 3);
     }
 
@@ -192,10 +183,6 @@ main(int, char* argv[]) {
             sample_num = glGetUniformLocation(shaderProgram, "sample_number");
             light_pos = glGetUniformLocation(shaderProgram, "light_pos");
             light_col = glGetUniformLocation(shaderProgram, "light_col");
-            ugrid_x = glGetUniformLocation(shaderProgram, "grid_x");
-            ugrid_x_pos = glGetUniformLocation(shaderProgram, "grid_x_pos");
-            ugrid_y = glGetUniformLocation(shaderProgram, "grid_y");
-            ugrid_y_pos = glGetUniformLocation(shaderProgram, "grid_y_pos");
 
             glDeleteShader(fragmentShader);
             glDeleteShader(vertexShader);
@@ -226,11 +213,6 @@ main(int, char* argv[]) {
                     glUniform3fv(light_pos, light_amt, glm::value_ptr(light_positions[0]));
                     glUniform1iv(light_col, light_amt, &light_colors[0]);
 
-                    // glUniform1i(ugrid_x, GRID_X);
-                    // glUniform1i(ugrid_x_pos, x);
-                    // glUniform1i(ugrid_y, GRID_Y);
-                    // glUniform1i(ugrid_y_pos, y);
-
                     glBindVertexArray(VAO);
                     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)0);
                     // swap buffers with window == show rendered content
@@ -248,11 +230,9 @@ main(int, char* argv[]) {
             screenDump(WINDOW_WIDTH, WINDOW_HEIGHT, frame);
         }
         if (frame == 600) {
-             break;
+            break;
         }
         frame++;
-        light_positions[0] += glm::vec3(0., 0., 2*getTimeDelta(1));
-        light_positions[1] += glm::vec3(0., 0., 2*getTimeDelta(1));
     }
     
     glDeleteFramebuffers(1, &fbo);

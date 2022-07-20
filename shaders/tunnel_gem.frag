@@ -53,11 +53,6 @@ uint hash( uint x ) {
     return x;
 }
 
-// Compound versions of the hashing algorithm I whipped together.
-uint hash( uvec2 v ) { return hash( v.x ^ hash(v.y)                         ); }
-uint hash( uvec3 v ) { return hash( v.x ^ hash(v.y) ^ hash(v.z)             ); }
-uint hash( uvec4 v ) { return hash( v.x ^ hash(v.y) ^ hash(v.z) ^ hash(v.w) ); }
-
 // Construct a float with half-open range [0:1] using low 23 bits.
 // All zeroes yields 0.0, all ones yields the next smallest representable value below 1.0.
 float floatConstruct( uint m ) {
@@ -72,10 +67,7 @@ float floatConstruct( uint m ) {
 }
 
 // Pseudo-random value in half-open range [0:1].
-float random( float x ) { return floatConstruct(hash(floatBitsToUint(x))); }
-float random( vec2  v ) { return floatConstruct(hash(floatBitsToUint(v))); }
-float random( vec3  v ) { return floatConstruct(hash(floatBitsToUint(v))); }
-float random( vec4  v ) { return floatConstruct(hash(floatBitsToUint(v))); }
+float random( vec4  v ) { return floatConstruct(hash(floatBitsToUint(v.x))); }
 
 float hash(vec3 p)  
 {
@@ -291,10 +283,6 @@ Object sdCartTrack(vec3 ray_pos, int distance) {
     return opSharpUnion(board_distance, track_distance);
 }
 
-// float sdCart(vec3 ray_pos) {
-//     return 1999;//sdCappedCylinder(opTx(ray_pos - path(uTime) - vec3(0.,-2.,8.), matRotZ(90)), 1., 1.);
-// }
-
 Object sdGround(vec3 ray_pos) {
     return sdPlaneY(ray_pos,  0.2, 2);
 }
@@ -343,13 +331,7 @@ Object map(vec3 pos){
 
     Object scene_distance = opSharpUnion(tunnel_distance, track_distance);
 
-    Object meta_ball = opSmoothUnion(sdSphere(pos - vec3(2.,2.,2.), 0.5, 1), sdSphere(pos - vec3(1.,2.,2.), 0.5, 1), 0.5);
-
-    return opSharpUnion(scene_distance, meta_ball);
-
-    Object light = sdSphere(pos - vec3(0., 0., 3.) - path(uTime), .2, 3);
-
-    return opSharpUnion(scene_distance, light);
+    return scene_distance;
 }
 
 Object light_map(vec3 pos) {
@@ -408,8 +390,7 @@ float light_ray(vec3 ray_origin, vec3 ray_direction){
 // Specifically https://www.shadertoy.com/view/lsf3zr
 vec3 light_scan(vec3 pos) {
     Light light = light_sources[0];
-    // TODO: Iterate over the light sources and take all of them into consideration
-    // TODO: Path tracing
+
     vec3 light_direction = normalize(light.position - pos);
     float max_t = distance(pos,light.position);
 
@@ -430,26 +411,6 @@ vec3 light_scan(vec3 pos) {
 // ***********
 // Path Tracer
 // ***********
-
-//https://raytracing.github.io/books/RayTracingInOneWeekend.html
-vec3 random_from_unit_sphere(inout uint sample_seed) {
-    while (true) {
-        float x = random(vec4(gl_FragCoord.xy, uTime, sample_seed));
-        sample_seed += 1;
-        float y = random(vec4(gl_FragCoord.xy, uTime, sample_seed));
-        sample_seed += 1;
-        float z = random(vec4(gl_FragCoord.xy, uTime, sample_seed));
-        sample_seed += 1;
-
-        vec3 vector = vec3(x,y,z);
-
-        if (length(vector) >= 1) {
-            continue;
-        }
-
-        return vector;
-    }
-}
 
 uint wang_hash(inout uint seed)
 {
@@ -477,49 +438,6 @@ vec3 RandomUnitVector(inout uint seed)
     return vec3(x, y, z);
 }
 
-vec3 sample_lights(vec3 pos, float distance_var) {
-    // Check n closest lights
-    // If hit, return emission (with distance reduction?)
-    int closest_lights_index[MAX_LIGHTS];
-    int found_lights = 0;
-
-    // Find all lights within threshold
-    for (int i = 0; i < MAX_LIGHTS; i++) {
-        if (abs(distance(light_pos[i], pos)) <= distance_var) {
-            closest_lights_index[found_lights] = i;
-            found_lights++;
-        }
-    }
-
-    vec3 combined_radiance = vec3(0.);
-
-    // Iterate over all found lights and combine their output
-    for (int i = 0; i < found_lights; i++) {
-        int selected_light = closest_lights_index[i];
-
-        vec3 selected_light_pos = light_pos[selected_light];
-
-        float dist = distance(pos, selected_light_pos);
-
-        vec3 direction = normalize(selected_light_pos - pos);
-
-        float t = ray(pos + EPSILON * direction, direction);
-        // Hit something on the way
-        if (t + 5*t*EPSILON < dist - 0.3) {
-            return vec3(0.);
-        }
-
-        Object obj = map(pos + t*direction);
-        combined_radiance += obj.material.emission / (dist + 1.);
-    }
-
-    if (found_lights > 0) {
-        combined_radiance /= float(found_lights);
-    }
-
-    return combined_radiance;
-}
-
 // Based on: https://github.com/quaiquai/ProjectLink-GLSL-Path-Tracer/blob/master/shaders/pathtracing_main.fs
 vec3 trace_path(in vec3 ray_origin, in vec3 ray_direction, int max_depth, inout uint seed) {
     wang_hash(seed);
@@ -538,19 +456,11 @@ vec3 trace_path(in vec3 ray_origin, in vec3 ray_direction, int max_depth, inout 
         // Recalculate the positional values
         origin = hit_pos + EPSILON * normal;
         direction = normalize(reflect(direction, normal) + RandomUnitVector(seed));
-        // direction = normalize(direction + RandomUnitVector(seed));
         
         throughput *= object.material.color;
-        // TODO: Percent specular
+
 
         radiance += (object.material.emission / (t + 1.)) * throughput;
-
-        // TODO: Sample lights
-
-        //radiance += sample_lights(origin, 5) * throughput;
-
-        // TODO: BRDF
-
         
         // Russian Roulette
         float p = max(throughput.x, max(throughput.y, throughput.z));
@@ -623,34 +533,17 @@ void main()
     materials[1] = Material(vec3(1.), vec3(0.), 0.);
     // Wall
     materials[2] = Material(vec3(0.271, 0.255, 0.247), vec3(0.), 0.);
-    // White Light
-    materials[3] = Material(vec3(1.), vec3(1., 245./255., 182./255.), 0.);
+    // Yellow6 Light
+    materials[3] = Material(vec3(236./249., 109./255., 42./255.), vec3(236./249., 109./255., 42./255.), 0.);
     // Blue gem
     materials[4] = Material(vec3(91./255., 150./255., 250./255.), vec3(91./255., 150./255., 250./255.), 0.);
-    // Pink gem
-    materials[5] = Material(vec3(255./255., 149./255., 184./255.), vec3(255./255., 149./255., 184./255.), 0.);
+    // Lime gem #c0ff00
+    materials[5] = Material(vec3(192./255., 255./255., 0./255.), vec3(192./255., 255./255., 0./255.), 0.);
     // Pink gem
     materials[6] = Material(vec3(255./255., 109./255., 184./255.), vec3(255./255., 109./255., 184./255.), 0.);
 
 
-    // vec2 uv = (2*gl_FragCoord.xy - vec2(uRes.xy)) / float(uRes.y);
     vec2 uv = normalizeScreenCoords(gl_FragCoord.xy);
-    // Check if current grid cell is the one to be rendered
-    // vec2 grid_uv_pos = vec2(grid_x_pos, grid_y_pos);
-    // vec2 grid_res = vec2(grid_x, grid_y);
-    // vec2 grid_uv = (2*grid_uv_pos - grid_res) / float(grid_res.y);
-    // float grid_u_left = grid_uv.x;
-    // float grid_u_right = grid_uv.y + 1./grid_res.x;
-    // float grid_v_top = grid_uv.x;
-    // float grid_v_bottom = grid_uv.y + 1./grid_res.y;
-
-    // if (uv.x < grid_u_left || uv.x > grid_u_right || uv.y < grid_v_top || uv.y > grid_v_bottom) {
-    //     frag_color = vec4(0.);
-    //     return;
-    // } else {
-    //     frag_color = vec4(grid_x / 4., grid_y / 4., 0., 1.);
-    //     return;
-    // }
 
     vec3 camera_origin = path(uTime);
     vec3 camera_target = vec3(0., 0., 3.) + path(uTime);
