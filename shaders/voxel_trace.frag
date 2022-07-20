@@ -117,7 +117,7 @@ Object map(vec3 pos) {
     float size = 5;
     vec2 p = -path(pos.z).xy + pos.xy*vec2(1, 1);
     Object wall_distance = Object(size - length(p) + noise(pos),1);
-
+    
     float rand = fract(noise(pos));
     if(rand < 0.3) {
         wall_distance.material = 1;
@@ -128,7 +128,7 @@ Object map(vec3 pos) {
     }
 
     Object planeDist = sdPlaneWave(pos, vec4(0,1., 0, 3.5), 2);
-
+    
 #ifdef GITTERBOAT
     vec3 boatPos = path(-uTime * 7.-1);
     boatPos.y -= 3.3;
@@ -300,7 +300,7 @@ vec3 render(vec3 ro, vec3 rd, float voxelsize) {
 #ifndef GITTERBOAT
     bool hit2;
     vec3 nor2;
-
+    
     Object boat = voxel_trace(vec3(0.), rot *  rd, hit2, nor2, Config(voxelsize, 1));
     if(hit2) {
         hit = hit2;
@@ -326,6 +326,7 @@ vec3 render(vec3 ro, vec3 rd, float voxelsize) {
 void main()
 {
     vec2 uv = (gl_FragCoord.xy / vec2(uRes.xy))*2.0-1.0;
+
 
     // compute ray origin and direction
     float asp = uRes.x / uRes.y;
@@ -363,7 +364,16 @@ void main()
 
 
 #ifdef VOXEL
-    float voxelsize = 0.25; 
+    float voxelsize;
+    if(uTime <= 1.) {
+        voxelsize = mix(1.5,0.25,uTime);
+    }else {
+        voxelsize = 0.25; 
+    }
+
+    if(uTime >= 19.) {
+        voxelsize = mix(0.25,1.5,uTime - 19.);
+    }
 #else
     float voxelsize = 0.;
 #endif
