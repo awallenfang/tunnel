@@ -31,6 +31,18 @@
                 Alle Tunnel wurden mittels Ray-Marching implementiert, wobei eine <abbr title="Signed Distance Function">SDF</abbr> definiert wird, welche zu eine Inputposition den Abstand zu der nächsten Position der Umgebung zurückgibt. <br> 
                 Damit werden dann Strahlen in die Szene geschossen, bei denen jeweils die Entfernung der <abbr title="Signed Distance Function">SDF</abbr> nach vorne geschritten wird, bis ein Threshold erreicht wird. Zurückgegeben wird dann die insgesamt zurückgelegte Entfernung.
             </p>
+
+            <h2>Rendering</h2>
+            <p>
+                Jeder Tunnel befindet sich in einer eigenen Shader Datei, die getrennt voneinander mittels tunnel.cpp gerendert werden. 
+                Um einen Tunnel auszuwählen wird die Environment Variabel "SHADER_OVERWRITE" genutzt. Die drei Tunnelnamen sind "tunnel_gem.frag", "tunnel_industrial.frag" und "voxel_trace.frag". <br>
+                Der Voxel Tunnel wird also mit "SHADER_OVERWRITE=voxel_trace.frag ./tunnel" ausgeführt. <br><br>
+                Um die gerenderten Frames auch abzuspeichern muss die Variabel "SCREEN_DUMP" gesetzt werden. Um den Voxel-Tunnel zu rendern ist also der Befehl "SCREEN_DUMP=TRUE SHADER_OVERWRITE=voxel_trace.frag ./tunnel" nötig.
+            </p>
+
+            <p>
+                Wichtig ist, dass bei dem Rendern von "tunnel_gem" intern noch die Sampleanzahl von 1 auf die gewünschte Samplemenge erhöht werden muss.
+            </p>
         </section>
         <section class="section">
             <h2>Voxel Tunnel</h2>
