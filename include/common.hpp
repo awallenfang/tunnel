@@ -4,11 +4,9 @@
 #include <iostream>
 #include <cstdio>
 #include <cstdlib>
+#include <vector>
 
 // Vendor Headers
-#include <assimp/Importer.hpp>
-#include <assimp/postprocess.h>
-#include <assimp/scene.h>
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>

@@ -6,11 +6,6 @@ option(GLFW_BUILD_EXAMPLES OFF)
 option(GLFW_BUILD_TESTS OFF)
 add_subdirectory(vendor/glfw)
 
-option(ASSIMP_BUILD_ASSIMP_TOOLS OFF)
-option(ASSIMP_BUILD_SAMPLES OFF)
-option(ASSIMP_BUILD_TESTS OFF)
-add_subdirectory(vendor/assimp)
-
 if(MSVC)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4 /std:c++17")
 else()
@@ -26,7 +21,6 @@ configure_file (
 )
 
 include_directories(include/
-                    vendor/assimp/include/
                     vendor/glad/include/
                     vendor/glfw/include/
                     vendor/glm/
@@ -58,7 +52,7 @@ foreach(PROJECT_SOURCE_FILE ${PROJECT_SOURCES})
     add_executable(${SRC_NAME} ${PROJECT_SOURCE_FILE} ${PROJECT_HEADERS}
                                ${PROJECT_SHADERS} ${PROJECT_CONFIGS}
                                ${LIBRARY_SOURCES} ${VENDORS_SOURCES})
-    target_link_libraries(${SRC_NAME} assimp glfw
+    target_link_libraries(${SRC_NAME} glfw
                           ${GLFW_LIBRARIES} ${GLAD_LIBRARIES})
     #set_target_properties(${SRC_NAME} PROPERTIES
         #RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PROJECT_NAME})
