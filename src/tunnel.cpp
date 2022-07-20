@@ -8,10 +8,11 @@
 #include <string>
 #include <filesystem>
 
-int WINDOW_WIDTH = 1280;
-int WINDOW_HEIGHT = 720;
+int WINDOW_WIDTH = 1920;
+int WINDOW_HEIGHT = 1080;
 int FPS = 30;
 int samples = 1;
+const int light_amt = 250;
 
 std::chrono::time_point<std::chrono::system_clock> start_time;
 
@@ -21,8 +22,7 @@ glm::uvec2 uRes;
 
 glm::vec4 color;
 glm::vec3 z;
-std::vector<geometry> objects;
-geometry object;
+
 unsigned int fbo = 0;
 unsigned int framebuffer_tex = 0;
 unsigned int depth_rbo = 0;
@@ -108,9 +108,12 @@ main(int, char* argv[]) {
     glUseProgram(shaderProgram);
     int res = glGetUniformLocation(shaderProgram, "uRes");
     int time = glGetUniformLocation(shaderProgram, "uTime");
-    int tex_loc = glGetUniformLocation(shaderProgram, "tex");
-    int seed = glGetUniformLocation(shaderProgram, "seed");
+    //int tex_loc = glGetUniformLocation(shaderProgram, "tex");
+    int seed = glGetUniformLocation(shaderProgram, "init_seed");
     int sample_amt = glGetUniformLocation(shaderProgram, "samples");
+    int sample_num = glGetUniformLocation(shaderProgram, "sample_number");
+    int light_pos = glGetUniformLocation(shaderProgram, "light_pos");
+    int light_col = glGetUniformLocation(shaderProgram, "light_col");
 
 
     // vertex data
@@ -146,7 +149,21 @@ main(int, char* argv[]) {
     auto dates = get_filetime(vs) + get_filetime(fs);
     auto newdates = dates;
 
-    int frame = 0;
+    int frame = 1;
+
+    // Gem object inits
+    std::vector<glm::vec3> light_positions;
+    std::vector<glm::int32> light_colors;
+
+    for (int i = 0; i < light_amt; i++) {
+        int rando = rand();
+        light_positions.push_back(glm::vec3(cos(rando) * 5., abs(sin(rando))* 5., 0.2f * i - 0.2f));
+    }
+
+    
+    for (int i = 0; i < light_amt; i++) {
+        light_colors.push_back((rand() % 4) + 3);
+    }
 
     // rendering loop
     while (!glfwWindowShouldClose(window)) {
@@ -160,10 +177,12 @@ main(int, char* argv[]) {
             
             res = glGetUniformLocation(shaderProgram, "uRes");
             time = glGetUniformLocation(shaderProgram, "uTime");
-            tex_loc = glGetUniformLocation(shaderProgram, "tex");
-            seed = glGetUniformLocation(shaderProgram, "time_seed");
+            //tex_loc = glGetUniformLocation(shaderProgram, "tex");
+            seed = glGetUniformLocation(shaderProgram, "init_seed");
             sample_amt = glGetUniformLocation(shaderProgram, "samples");
-            // TODO: Add sample amount
+            sample_num = glGetUniformLocation(shaderProgram, "sample_number");
+            light_pos = glGetUniformLocation(shaderProgram, "light_pos");
+            light_col = glGetUniformLocation(shaderProgram, "light_col");
 
             glDeleteShader(fragmentShader);
             glDeleteShader(vertexShader);
@@ -176,27 +195,33 @@ main(int, char* argv[]) {
         glClear(GL_COLOR_BUFFER_BIT);
 
         for (int i = 0; i<samples; i++) {
-            const auto p1 = std::chrono::system_clock::now();
+            // for (int x = 0; x < GRID_X; x++) {
+            //     for (int y = 0; y < GRID_Y; y++) {
+                    // render something...
+                    // Update moving lights
+                    
+                    glUseProgram(shaderProgram);
 
-            int time_seed = std::chrono::duration_cast<std::chrono::milliseconds>(p1.time_since_epoch()).count();
-            
-            // render something...
-            glUseProgram(shaderProgram);
+                    glEnable(GL_BLEND);
+                    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);  
 
-            glEnable(GL_BLEND);
-            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);  
+                    glUniform1i(sample_amt, samples);
+                    glUniform1i(sample_num, i);
+                    glUniform1f(time, getTimeDelta(frame));
+                    glUniform1i(seed, rand());
+                    glUniform2ui(res, WINDOW_WIDTH, WINDOW_HEIGHT);
+                    glUniform3fv(light_pos, light_amt, glm::value_ptr(light_positions[0]));
+                    glUniform1iv(light_col, light_amt, &light_colors[0]);
 
-            // std::cout << getTimeDelta(frame) << "\n";
-            glUniform1i(sample_amt, samples);
-            glUniform1f(time, getTimeDelta(frame));
-            glUniform1f(seed, rand());
-            glUniform2ui(res, WINDOW_WIDTH, WINDOW_HEIGHT);
-            glBindVertexArray(VAO);
-            glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)0);
-            // swap buffers with window == show rendered content
+                    glBindVertexArray(VAO);
+                    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)0);
+                    // swap buffers with window == show rendered content
+                    
+            //     }
+            // }
             glfwSwapBuffers(window);
         }
-
+        
         
         // process window events
         glfwPollEvents();
@@ -205,7 +230,7 @@ main(int, char* argv[]) {
             screenDump(WINDOW_WIDTH, WINDOW_HEIGHT, frame);
         }
         if (frame == 600) {
-             break;
+            break;
         }
         frame++;
     }
