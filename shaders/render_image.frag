@@ -23,14 +23,15 @@ vec3 aces(vec3 x) {
 }
 
 void main() {
-    if (gl_FragCoord.x < x0 + 1.1 && gl_FragCoord.x > x0 - 1.6 && gl_FragCoord.y < y0 + 30.1 && gl_FragCoord.y > y0 - 1.6 || 
-        gl_FragCoord.x < x0 + 1.1 && gl_FragCoord.x > x0 - 1.6 && gl_FragCoord.y > y1 - 30.1 && gl_FragCoord.y < y1 + 1.6 || 
-        gl_FragCoord.x > x1 - 1.1 && gl_FragCoord.x < x1 + 1.6 && gl_FragCoord.y > y1 - 30.1 && gl_FragCoord.y < y1 + 1.6 || 
-        gl_FragCoord.x > x1 - 1.1 && gl_FragCoord.x < x1 + 1.6 && gl_FragCoord.y < y0 + 30.1 && gl_FragCoord.y > y0 - 1.6 || 
-        gl_FragCoord.y < y0 + 1.1 && gl_FragCoord.y > y0 - 1.6 && gl_FragCoord.x < x0 + 30.1 && gl_FragCoord.x > x0 - 1.6 || 
-        gl_FragCoord.y < y0 + 1.1 && gl_FragCoord.y > y0 - 1.6 && gl_FragCoord.x > x1 - 30.1 && gl_FragCoord.x < x1 + 1.6 || 
-        gl_FragCoord.y > y1 - 1.1 && gl_FragCoord.y < y1 + 1.6 && gl_FragCoord.x > x1 - 30.1 && gl_FragCoord.x < x1 + 1.6 || 
-        gl_FragCoord.y > y1 - 1.1 && gl_FragCoord.y < y1 + 1.6 && gl_FragCoord.x < x0 + 30.1 && gl_FragCoord.x > x0 - 1.6) {
+    if ((gl_FragCoord.x < x0 + 1.1 && gl_FragCoord.x > x0 - 1.6 && gl_FragCoord.y < y0 + 30.1 && gl_FragCoord.y > y0 - 1.6 || 
+         gl_FragCoord.x < x0 + 1.1 && gl_FragCoord.x > x0 - 1.6 && gl_FragCoord.y > y1 - 30.1 && gl_FragCoord.y < y1 + 1.6 || 
+         gl_FragCoord.x > x1 - 1.1 && gl_FragCoord.x < x1 + 1.6 && gl_FragCoord.y > y1 - 30.1 && gl_FragCoord.y < y1 + 1.6 || 
+         gl_FragCoord.x > x1 - 1.1 && gl_FragCoord.x < x1 + 1.6 && gl_FragCoord.y < y0 + 30.1 && gl_FragCoord.y > y0 - 1.6 || 
+         gl_FragCoord.y < y0 + 1.1 && gl_FragCoord.y > y0 - 1.6 && gl_FragCoord.x < x0 + 30.1 && gl_FragCoord.x > x0 - 1.6 || 
+         gl_FragCoord.y < y0 + 1.1 && gl_FragCoord.y > y0 - 1.6 && gl_FragCoord.x > x1 - 30.1 && gl_FragCoord.x < x1 + 1.6 || 
+         gl_FragCoord.y > y1 - 1.1 && gl_FragCoord.y < y1 + 1.6 && gl_FragCoord.x > x1 - 30.1 && gl_FragCoord.x < x1 + 1.6 || 
+         gl_FragCoord.y > y1 - 1.1 && gl_FragCoord.y < y1 + 1.6 && gl_FragCoord.x < x0 + 30.1 && gl_FragCoord.x > x0 - 1.6) && 
+         x0 >= 0.0 && x1 >= 0.0 && y0 >= 0.0 && y1 >= 0.0) {
 
         frag_color = vec4(1.0, 0.6, 0.0, 1.0);
         return;
