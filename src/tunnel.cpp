@@ -8,7 +8,7 @@
 int WINDOW_WIDTH = 1920;
 int WINDOW_HEIGHT = 1080;
 int FPS = 30;
-int samples = 2000;
+int samples = 100;
 
 const int light_amt = 250;
 
@@ -342,7 +342,6 @@ main(int, char *argv[]) {
             if (glfwWindowShouldClose(window)) break;
         }
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
         glClear(GL_COLOR_BUFFER_BIT);
 
         glUseProgram(renderTextureShader);
@@ -350,17 +349,13 @@ main(int, char *argv[]) {
         glBindTexture(GL_TEXTURE_2D, framebuffer_tex);
         glUniform1i(sample_texShader, samples);
         glUniform1i(samples_texShader, samples);
-        glUniform1f(x0, -1.0);
-        glUniform1f(x1, -1.0);
-        glUniform1f(y0, -1.0);
-        glUniform1f(y1, -1.0);
+        glUniform1f(x0_texShader, -1.0);
+        glUniform1f(x1_texShader, -1.0);
+        glUniform1f(y0_texShader, -1.0);
+        glUniform1f(y1_texShader, -1.0);
 
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)0);
         glfwSwapBuffers(window);
-
-        glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-
-        glUseProgram(shaderProgram);
 
         // process window events
         glfwPollEvents();
