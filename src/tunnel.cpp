@@ -8,7 +8,8 @@
 int WINDOW_WIDTH = 1920;
 int WINDOW_HEIGHT = 1080;
 int FPS = 30;
-int samples = 20;
+int samples = 2000;
+
 const int light_amt = 250;
 
 float getTimeDelta(int frame);
@@ -270,7 +271,7 @@ main(int, char *argv[]) {
 
         glBindVertexArray(VAO);
 
-        int screenDivisions = 9;
+        int screenDivisions = 5;
         int x = (screenDivisions - 1) / 2;
         int y = screenDivisions / 2;
         int step = 0;
