@@ -17,10 +17,10 @@ uniform int sample_number;
 uniform vec3 light_pos[MAX_LIGHTS];
 uniform int light_col[MAX_LIGHTS];
 
-uniform int x0;
-uniform int x1;
-uniform int y0;
-uniform int y1;
+uniform float x0;
+uniform float x1;
+uniform float y0;
+uniform float y1;
 
 struct Light {
     vec3 position;

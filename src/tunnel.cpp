@@ -101,7 +101,7 @@ main(int, char *argv[]) {
     glfwSetFramebufferSizeCallback(window, resizeCallback);
 
     std::string vertexShaderName = "tunnel.vert";
-    std::string fragmentShaderName = "voxel_trace.frag";
+    std::string fragmentShaderName = "tunnel_gem.frag";
 
     if (const char *shaderOverride = std::getenv("SHADER_OVERWRITE")) {
         fragmentShaderName = std::string(shaderOverride) + ".frag";
@@ -271,7 +271,7 @@ main(int, char *argv[]) {
 
         glBindVertexArray(VAO);
 
-        int screenDivisions = 5;
+        int screenDivisions = 9;
         int x = (screenDivisions - 1) / 2;
         int y = screenDivisions / 2;
         int step = 0;
