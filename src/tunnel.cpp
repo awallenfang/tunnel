@@ -8,7 +8,7 @@
 int WINDOW_WIDTH = 1920;
 int WINDOW_HEIGHT = 1080;
 int FPS = 30;
-int samples = 2000;
+int samples = 20;
 const int light_amt = 250;
 
 float getTimeDelta(int frame);
@@ -154,6 +154,10 @@ main(int, char *argv[]) {
     glUniform1i(glGetUniformLocation(renderTextureShader, "tex"), 0);
     int sample_texShader = glGetUniformLocation(renderTextureShader, "sample_num");
     int samples_texShader = glGetUniformLocation(renderTextureShader, "samples");
+    int x0_texShader = glGetUniformLocation(renderTextureShader, "x0");
+    int x1_texShader = glGetUniformLocation(renderTextureShader, "x1");
+    int y0_texShader = glGetUniformLocation(renderTextureShader, "y0");
+    int y1_texShader = glGetUniformLocation(renderTextureShader, "y1");
 
     // vertex data
     float vertices[] = {
@@ -266,7 +270,7 @@ main(int, char *argv[]) {
 
         glBindVertexArray(VAO);
 
-        int screenDivisions = 5;
+        int screenDivisions = 9;
         int x = (screenDivisions - 1) / 2;
         int y = screenDivisions / 2;
         int step = 0;
@@ -303,10 +307,10 @@ main(int, char *argv[]) {
                     glBindTexture(GL_TEXTURE_2D, framebuffer_tex);
                     glUniform1i(sample_texShader, i + 1);
                     glUniform1i(samples_texShader, samples);
-                    glUniform1f(x0, float(WINDOW_WIDTH) * float(x) / float(screenDivisions));
-                    glUniform1f(x1, float(WINDOW_WIDTH) * float(x + 1) / float(screenDivisions));
-                    glUniform1f(y0, float(WINDOW_HEIGHT) * float(y) / float(screenDivisions));
-                    glUniform1f(y1, float(WINDOW_HEIGHT) * float(y + 1) / float(screenDivisions));
+                    glUniform1f(x0_texShader, float(WINDOW_WIDTH) * float(x) / float(screenDivisions));
+                    glUniform1f(x1_texShader, float(WINDOW_WIDTH) * float(x + 1) / float(screenDivisions));
+                    glUniform1f(y0_texShader, float(WINDOW_HEIGHT) * float(y) / float(screenDivisions));
+                    glUniform1f(y1_texShader, float(WINDOW_HEIGHT) * float(y + 1) / float(screenDivisions));
 
                     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*) 0);
                     glfwSwapBuffers(window);
