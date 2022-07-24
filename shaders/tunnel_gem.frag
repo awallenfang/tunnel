@@ -17,10 +17,10 @@ uniform int sample_number;
 uniform vec3 light_pos[MAX_LIGHTS];
 uniform int light_col[MAX_LIGHTS];
 
-uniform int grid_x;
-uniform int grid_x_pos;
-uniform int grid_y;
-uniform int grid_y_pos;
+uniform int x0;
+uniform int x1;
+uniform int y0;
+uniform int y1;
 
 struct Light {
     vec3 position;
@@ -364,7 +364,7 @@ float ray(vec3 ray_origin, vec3 ray_direction){
         
         if( d < EPSILON * t) return t;
         if (d > FAR_PLANE) return -1.;
-        t += d;
+        t += d * 0.5;
     }
     return t;
 }
@@ -501,7 +501,8 @@ vec3 render(vec3 ray_origin, vec3 ray_direction, inout uint seed) {
     }
 
     #endif
-    return gamma_correction(col);
+    // return gamma_correction(col);
+    return col;
 }
 
 vec3 getCameraRayDir(vec2 uv, vec3 camPos, vec3 camTarget) {
@@ -524,8 +525,13 @@ vec2 normalizeScreenCoords(vec2 screenCoords) {
 
 void main()
 {
+    // if (gl_FragCoord.x <= x0 || gl_FragCoord.y > x1 || gl_FragCoord.y <= y0 || gl_FragCoord.y > y1) {
+        // discard;
+    // }
     
     uint sample_seed = uint(uint(gl_FragCoord.x) * uint(1973 * init_seed) + uint(gl_FragCoord.y) * uint(9277 * init_seed)) | uint(1);
+
+    float brightness = 5.0;
 
     // Wood
     materials[0] = Material(vec3(.8, .5, .21), vec3(0.), 0.);
@@ -534,16 +540,16 @@ void main()
     // Wall
     materials[2] = Material(vec3(0.271, 0.255, 0.247), vec3(0.), 0.);
     // Yellow6 Light
-    materials[3] = Material(vec3(236./249., 109./255., 42./255.), vec3(236./249., 109./255., 42./255.), 0.);
+    materials[3] = Material(vec3(236./249., 109./255., 42./255.), brightness * vec3(236./249., 109./255., 42./255.), 0.);
     // Blue gem
-    materials[4] = Material(vec3(91./255., 150./255., 250./255.), vec3(91./255., 150./255., 250./255.), 0.);
+    materials[4] = Material(vec3(91./255., 150./255., 250./255.), brightness * vec3(91./255., 150./255., 250./255.), 0.);
     // Lime gem #c0ff00
-    materials[5] = Material(vec3(192./255., 255./255., 0./255.), vec3(192./255., 255./255., 0./255.), 0.);
+    materials[5] = Material(vec3(192./255., 255./255., 0./255.), brightness * vec3(192./255., 255./255., 0./255.), 0.);
     // Pink gem
-    materials[6] = Material(vec3(255./255., 109./255., 184./255.), vec3(255./255., 109./255., 184./255.), 0.);
+    materials[6] = Material(vec3(255./255., 109./255., 184./255.), brightness * vec3(255./255., 109./255., 184./255.), 0.);
 
 
-    vec2 uv = normalizeScreenCoords(gl_FragCoord.xy);
+    vec2 uv = normalizeScreenCoords(gl_FragCoord.xy + RandomUnitVector(sample_seed).xy - vec2(0.5));
 
     vec3 camera_origin = path(uTime);
     vec3 camera_target = vec3(0., 0., 3.) + path(uTime);
@@ -552,10 +558,11 @@ void main()
 
     vec3 col = render(camera_origin, camera_direction, sample_seed);
 
-    float alpha = (4.*3.14159)/samples;
+
+    float alpha = 1.0 / float(samples);
 
     if (col.x < 0.01 && col.y < 0.01 && col.z < 0.01) {
-        alpha = 0.;
+        // alpha = 0.;
     }
 
     frag_color = vec4(col, alpha);

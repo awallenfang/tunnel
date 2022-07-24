@@ -8,7 +8,7 @@
 int WINDOW_WIDTH = 1920;
 int WINDOW_HEIGHT = 1080;
 int FPS = 30;
-int samples = 1;
+int samples = 2000;
 const int light_amt = 250;
 
 float getTimeDelta(int frame);
@@ -129,9 +129,31 @@ main(int, char *argv[]) {
     int seed = glGetUniformLocation(shaderProgram, "init_seed");
     int sample_amt = glGetUniformLocation(shaderProgram, "samples");
     int sample_num = glGetUniformLocation(shaderProgram, "sample_number");
+    int x0 = glGetUniformLocation(shaderProgram, "x0");
+    int x1 = glGetUniformLocation(shaderProgram, "x1");
+    int y0 = glGetUniformLocation(shaderProgram, "y0");
+    int y1 = glGetUniformLocation(shaderProgram, "y1");
     int light_pos = glGetUniformLocation(shaderProgram, "light_pos");
     int light_col = glGetUniformLocation(shaderProgram, "light_col");
 
+    // Render Texture Shader
+    vertexShaderName = "render_image.vert";
+    fragmentShaderName = "render_image.frag";
+
+    // load and compile shaders and link program
+    vertexShader = compileShader(vertexShaderName.c_str(), GL_VERTEX_SHADER);
+    fragmentShader = compileShader(fragmentShaderName.c_str(), GL_FRAGMENT_SHADER);
+
+    unsigned int renderTextureShader = linkProgram(vertexShader, fragmentShader);
+    // after linking the program the shader objects are no longer needed
+    glDeleteShader(fragmentShader);
+    glDeleteShader(vertexShader);
+
+    // Define uniform variables
+    glUseProgram(renderTextureShader);
+    glUniform1i(glGetUniformLocation(renderTextureShader, "tex"), 0);
+    int sample_texShader = glGetUniformLocation(renderTextureShader, "sample_num");
+    int samples_texShader = glGetUniformLocation(renderTextureShader, "samples");
 
     // vertex data
     float vertices[] = {
@@ -192,6 +214,11 @@ main(int, char *argv[]) {
         light_colors.push_back((rand() % 4) + 3);
     }
 
+    float t0 = glfwGetTime();
+    float frame_t0 = glfwGetTime();
+
+    bool test = true;
+
     // rendering loop
     while (!glfwWindowShouldClose(window)) {
         // check for shader reload
@@ -208,6 +235,10 @@ main(int, char *argv[]) {
             seed = glGetUniformLocation(shaderProgram, "init_seed");
             sample_amt = glGetUniformLocation(shaderProgram, "samples");
             sample_num = glGetUniformLocation(shaderProgram, "sample_number");
+            x0 = glGetUniformLocation(shaderProgram, "x0");
+            x1 = glGetUniformLocation(shaderProgram, "x1");
+            y0 = glGetUniformLocation(shaderProgram, "y0");
+            y1 = glGetUniformLocation(shaderProgram, "y1");
             light_pos = glGetUniformLocation(shaderProgram, "light_pos");
             light_col = glGetUniformLocation(shaderProgram, "light_col");
 
@@ -216,34 +247,115 @@ main(int, char *argv[]) {
             dates = newdates;
         }
 
+        glBindFramebuffer(GL_FRAMEBUFFER, fbo);
         // set background color...
-        glClearColor(0.f, 0.f, 0.f, 1.0f);
+        glClearColor(0.f, 0.f, 0.f, 0.0f);
         // and fill screen with it (therefore clearing the window)
         glClear(GL_COLOR_BUFFER_BIT);
 
-        for (int i = 0; i < samples; i++) {
+        glUseProgram(shaderProgram);
 
-            glUseProgram(shaderProgram);
+        glEnable(GL_BLEND);
+        glBlendEquation(GL_FUNC_ADD);
+        glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE, GL_ONE, GL_ONE);
+        glUniform1i(sample_amt, samples);
+        glUniform1i(tex_loc, 0);
+        glUniform2ui(res, WINDOW_WIDTH, WINDOW_HEIGHT);
+        glUniform3fv(light_pos, light_amt, glm::value_ptr(light_positions[0]));
+        glUniform1iv(light_col, light_amt, &light_colors[0]);
 
-            glEnable(GL_BLEND);
-            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glBindVertexArray(VAO);
 
-            glUniform1i(sample_amt, samples);
-            glUniform1i(sample_num, i);
-            glUniform1f(time, getTimeDelta(frame));
-            glUniform1i(seed, rand());
-            glUniform1i(tex_loc, 0);
-            glUniform2ui(res, WINDOW_WIDTH, WINDOW_HEIGHT);
-            glUniform3fv(light_pos, light_amt, glm::value_ptr(light_positions[0]));
-            glUniform1iv(light_col, light_amt, &light_colors[0]);
+        int screenDivisions = 5;
+        int x = (screenDivisions - 1) / 2;
+        int y = screenDivisions / 2;
+        int step = 0;
+        int stepsize = 1;
+        int dirX = 0;
+        int dirY = -1;
+        while(x >= 0 && x < screenDivisions && y >= 0 && y < screenDivisions) {
+            for (int i = 0; i < samples; i++) {
+                glUniform1i(sample_num, i);
+                glUniform1f(x0, float(x) / float(screenDivisions));
+                glUniform1f(x1, float(x + 1) / float(screenDivisions));
+                glUniform1f(y0, float(y) / float(screenDivisions));
+                glUniform1f(y1, float(y + 1) / float(screenDivisions));
+                glUniform1f(time, getTimeDelta(frame));
+                glUniform1i(seed, rand());
 
-            glBindVertexArray(VAO);
-            glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void *) 0);
-            // swap buffers with window == show rendered content
+                glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)0);
 
-            glfwSwapBuffers(window);
+#ifdef _WIN32
+                Sleep(2.0f);
+#else
+                sleep(0.002f);
+#endif
+
+                if (glfwGetTime() - frame_t0 > 1.0 / 60.0) {
+                //if (test) {
+                    frame_t0 = glfwGetTime();
+                    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+                    glClear(GL_COLOR_BUFFER_BIT);
+
+                    glUseProgram(renderTextureShader);
+                    glActiveTexture(GL_TEXTURE0);
+                    glBindTexture(GL_TEXTURE_2D, framebuffer_tex);
+                    glUniform1i(sample_texShader, i + 1);
+                    glUniform1i(samples_texShader, samples);
+                    glUniform1f(x0, float(WINDOW_WIDTH) * float(x) / float(screenDivisions));
+                    glUniform1f(x1, float(WINDOW_WIDTH) * float(x + 1) / float(screenDivisions));
+                    glUniform1f(y0, float(WINDOW_HEIGHT) * float(y) / float(screenDivisions));
+                    glUniform1f(y1, float(WINDOW_HEIGHT) * float(y + 1) / float(screenDivisions));
+
+                    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*) 0);
+                    glfwSwapBuffers(window);
+
+                    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+
+                    glUseProgram(shaderProgram);
+                }
+                glfwPollEvents();
+                test = !test;
+
+                if (glfwWindowShouldClose(window)) break;
+            }
+
+            x += dirX;
+            y += dirY;
+            step++;
+            if (step == stepsize) {
+                if (dirY == 0) {
+                    stepsize++;
+                }
+                int temp = dirX;
+                dirX = -dirY;
+                dirY = temp;
+                step = 0;
+            }
+
+            if (glfwWindowShouldClose(window)) break;
         }
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
+        glClear(GL_COLOR_BUFFER_BIT);
+
+        glUseProgram(renderTextureShader);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, framebuffer_tex);
+        glUniform1i(sample_texShader, samples);
+        glUniform1i(samples_texShader, samples);
+        glUniform1f(x0, -1.0);
+        glUniform1f(x1, -1.0);
+        glUniform1f(y0, -1.0);
+        glUniform1f(y1, -1.0);
+
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)0);
+        glfwSwapBuffers(window);
+
+        glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+
+        glUseProgram(shaderProgram);
 
         // process window events
         glfwPollEvents();
@@ -251,10 +363,15 @@ main(int, char *argv[]) {
         if (shouldScreenDump) {
             screenDump(WINDOW_WIDTH, WINDOW_HEIGHT, frame);
         }
-        if (frame == 600) {
+        if (frame == 300) {
             break;
         }
         frame++;
+
+        float t1 = glfwGetTime();
+        float dt = t1 - t0;
+        t0 = t1;
+        std::cout << "Frame time: " << int(dt * 1000.0) << "ms, ETA: " << int(float(300 - frame) * dt) << "s" << std::endl;
     }
 
     glDeleteFramebuffers(1, &fbo);
